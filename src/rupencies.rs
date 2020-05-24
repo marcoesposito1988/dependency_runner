@@ -3,6 +3,12 @@ extern crate winapi;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
+#[derive(Debug)]
+pub enum Error {
+    CouldNotOpenFile(std::io::Error),
+    ProcessingError(pelite::Error),
+}
+
 fn get_winapi_directory(
     a: unsafe extern "system" fn(
         winapi::um::winnt::LPWSTR,
@@ -38,47 +44,116 @@ pub fn get_windows_directory() -> Result<String, std::io::Error> {
 use pelite::pe64::{Pe, PeFile};
 use std::path::Path;
 
-fn example(file: PeFile<'_>) -> pelite::Result<()> {
+pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
+    path: &P,
+) -> Result<Vec<String>, Error> {
+    use crate::rupencies::Error::{CouldNotOpenFile, ProcessingError};
+    let path = path.as_ref();
+    let map = pelite::FileMap::open(path).map_err(|e| CouldNotOpenFile(e))?;
+    let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError(e))?;
+
     // Access the import directory
-    let imports = file.imports()?;
+    let imports = file.imports().map_err(|e| ProcessingError(e))?;
 
-    // Iterate over the import descriptors
-    for desc in imports {
-        // DLL being imported from
-        let dll_name = desc.dll_name()?;
-        println!("{}", dll_name);
-
-        // Import Address Table and Import Name Table for this imported DLL
-        // let iat = desc.iat()?;
-        // let int = desc.int()?;
-
-        // Iterate over the imported functions from this DLL
-        // for (va, import) in Iterator::zip(iat, int) {}
-    }
-
-    // Iterate over the IAT
-    // for (va, import) in file.iat()?.iter() {
-    //     // The IAT may contains Null entries where the IAT of imported modules join
-    //     if let Ok(import) = import {}
-    // }
-
-    Ok(())
+    let names: Vec<&pelite::util::CStr> = imports
+        .iter()
+        .map(|desc| desc.dll_name())
+        .collect::<Result<Vec<&pelite::util::CStr>, pelite::Error>>()
+        .map_err(|e| ProcessingError(e))?;
+    Ok(names
+        .iter()
+        .filter_map(|s| s.to_str().ok())
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>())
 }
 
-pub fn file_map<P: AsRef<Path> + ?Sized>(path: &P) -> pelite::Result<()> {
-    let path = path.as_ref();
-    if let Ok(map) = pelite::FileMap::open(path) {
-        let file = PeFile::from_bytes(&map)?;
+pub struct Context {
+    app_dir: String,
+    sys_dir: String,
+    win_dir: String,
+    app_wd: String,
+    env_path: Vec<String>,
+}
 
-        // Access the file contents through the Pe trait
-        let image_base = file.optional_header().ImageBase;
-        println!(
-            "The preferred load address of {:?} is {}.",
-            path, image_base
-        );
+impl Context {
+    pub fn new(app_dir: &str, app_wd: &str) -> Self {
+        let app_dir = app_dir.to_string();
+        let sys_dir = get_system_directory().unwrap();
+        let win_dir = get_windows_directory().unwrap();
+        let app_wd = app_wd.to_string();
 
-        // See the respective modules to access other parts of the PE file.
-        example(file);
+        let path_str = std::env::var_os("PATH")
+            .unwrap_or(OsString::from(""))
+            .to_str()
+            .unwrap()
+            .to_string();
+        let env_path: Vec<String> = path_str.split(";").map(|s| s.to_string()).collect();
+
+        Self {
+            app_dir,
+            sys_dir,
+            win_dir,
+            app_wd,
+            env_path,
+        }
     }
-    Ok(())
+
+    /*
+    Standard DLL search order for Desktop Applications (safe mode)
+    https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#standard-search-order-for-desktop-applications
+
+    1) application directory
+    2) system directory (GetSystemDirectory())
+    3) DEPRECATED: 16-bit system directory
+    4) Windows directory (GetWindowsDirectory())
+    5) Current directory
+    6) PATH environment variable
+    */
+    pub fn search_path(&self) -> Vec<String> {
+        let mut ret: Vec<String> = vec![
+            self.app_dir.clone(),
+            self.sys_dir.clone(),
+            self.win_dir.clone(),
+            self.app_wd.clone(),
+        ];
+        ret.extend(self.env_path.iter().cloned());
+        ret
+    }
+}
+
+fn test_executable_in_path(filename: &str, path: &str) -> Result<bool, Error> {
+    use crate::rupencies::Error::CouldNotOpenFile;
+    let fullpath = Path::new(path).join(filename);
+    let attr = std::fs::metadata(fullpath).map_err(|e| CouldNotOpenFile(e))?;
+    Ok(attr.is_file())
+}
+#[derive(Debug)]
+pub enum LookupResult {
+    Found(String),
+    NotFound,
+}
+
+pub fn lookup_executable(filename: &str, context: &Context) -> Result<LookupResult, Error> {
+    let search_path = context.search_path();
+    for d in search_path {
+        if let Ok(found) = test_executable_in_path(filename, &d) {
+            if found {
+                return Ok(LookupResult::Found(d));
+            }
+        }
+    }
+
+    Ok(LookupResult::NotFound)
+}
+
+pub fn lookup_executable_dependencies(filename: &str, context: &Context) {
+    println!("inspecting {}", filename);
+
+    let dependencies = dlls_imported_by_executable(filename).unwrap();
+
+    for d in dependencies {
+        println!();
+        println!("looking up {}", d);
+        println!("{:?}", lookup_executable(&d, context));
+    }
 }
