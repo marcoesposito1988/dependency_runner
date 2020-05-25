@@ -52,7 +52,7 @@ use std::path::Path;
 pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
     path: &P,
 ) -> Result<Vec<String>, Error> {
-    use crate::rupencies::Error::{CouldNotOpenFile, ProcessingError};
+    use crate::dependency_runner::Error::{CouldNotOpenFile, ProcessingError};
     let path = path.as_ref();
     let map = pelite::FileMap::open(path).map_err(|e| CouldNotOpenFile(e))?;
     let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError(e))?;
@@ -151,7 +151,7 @@ impl Context {
 }
 
 fn test_executable_in_path(filename: &str, path: &str) -> Result<bool, Error> {
-    use crate::rupencies::Error::CouldNotOpenFile;
+    use crate::dependency_runner::Error::CouldNotOpenFile;
     let fullpath = Path::new(path).join(filename);
     let attr = std::fs::metadata(fullpath).map_err(|e| CouldNotOpenFile(e))?;
     Ok(attr.is_file())

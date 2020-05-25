@@ -1,5 +1,5 @@
 [package]
-name = "rupencies"
+name = "dependency_runner"
 version = "0.1.0"
 authors = ["Marco Esposito <esposito@imfusion.com>"]
 edition = "2018"

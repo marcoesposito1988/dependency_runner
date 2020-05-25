@@ -1,6 +1,6 @@
-use crate::rupencies::{Context, lookup_executable_dependencies};
+use crate::dependency_runner::{Context, lookup_executable_dependencies};
 
-mod rupencies;
+mod dependency_runner;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -13,7 +13,7 @@ fn main() {
     // TODO: proper argument passing
     #[cfg(not(windows))]
     if args.len() < 4 {
-        println!("Usage: rupencies <executable> <system directory> <windows directory>");
+        println!("Usage: dependency_runner <executable> <system directory> <windows directory>");
         return;
     }
 
