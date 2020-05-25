@@ -156,12 +156,65 @@ fn test_executable_in_path(filename: &str, path: &str) -> Result<bool, Error> {
     let attr = std::fs::metadata(fullpath).map_err(|e| CouldNotOpenFile(e))?;
     Ok(attr.is_file())
 }
+
 #[derive(Debug)]
 pub enum LookupResult {
     Found(String),
+    // the string is the containing directory
     NotFound,
 }
 
+#[derive(Debug)]
+pub struct Executable {
+    name: String,
+    pub(crate) folder: Option<String>,
+    pub(crate) dependencies: Option<Vec<String>>,
+}
+
+type Executables = std::collections::HashMap<String, Executable>;
+
+struct Workqueue {
+    executables_to_lookup: Vec<String>,
+    executables_found: Executables, // using filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
+}
+
+impl Workqueue {
+    fn new() -> Self {
+        Self {
+            executables_to_lookup: Vec::new(),
+            executables_found: std::collections::HashMap::new(),
+        }
+    }
+
+    // the user enqueues an executable; the workers enqueue the dependencies of those that were found
+    // (skip the dependencies that have already been found)
+    fn enqueue(&mut self, executable_name: &str) {
+        if !self.executables_found.contains_key(executable_name) {
+            self.executables_to_lookup.push(executable_name.to_string())
+        }
+    }
+
+    // the workers fetch work to be done (the name of a DLL to be found)
+    fn pop(&mut self) -> Option<String> {
+        self.executables_to_lookup.pop()
+    }
+
+    // the workers register the executable that was found for the given name; the function checks for uniqueness
+    fn register_finding(&mut self, found: Executable) {
+        if self.executables_found.contains_key(&found.name) {
+            if found.folder != self.executables_found[&found.name].folder {
+                panic!(
+                    "Found two DLLs with the same name! {:?} and {:?}",
+                    found.folder, self.executables_found[&found.name].folder
+                )
+            }
+        } else {
+            self.executables_found.insert(found.name.clone(), found);
+        }
+    }
+}
+
+// returns the directory containing the executable, if found
 pub fn lookup_executable(filename: &str, context: &Context) -> Result<LookupResult, Error> {
     let search_path = context.search_path();
     for d in search_path {
@@ -175,14 +228,48 @@ pub fn lookup_executable(filename: &str, context: &Context) -> Result<LookupResu
     Ok(LookupResult::NotFound)
 }
 
-pub fn lookup_executable_dependencies(filename: &str, context: &Context) {
+pub fn lookup_executable_dependencies(filename: &str, context: &Context) -> Executables {
     println!("inspecting {}", filename);
 
-    let dependencies = dlls_imported_by_executable(filename).unwrap();
+    let mut workqueue = Workqueue::new();
+    workqueue.enqueue(filename);
 
-    for d in dependencies {
-        println!();
-        println!("looking up {}", d);
-        println!("{:?}", lookup_executable(&d, context));
+    while let Some(executable) = workqueue.pop() {
+        if let Ok(l) = lookup_executable(&executable, &context) {
+            if let LookupResult::Found(folder) = l {
+                let fullpath = folder.to_string() + "/" + &executable;
+                if let Ok(dependencies) = dlls_imported_by_executable(&fullpath) {
+                    for d in &dependencies {
+                        workqueue.enqueue(d);
+                    }
+
+                    workqueue.register_finding(Executable {
+                        name: executable.clone(),
+                        folder: Some(folder),
+                        dependencies: Some(dependencies),
+                    });
+                } else {
+                    workqueue.register_finding(Executable {
+                        name: executable.clone(),
+                        folder: None,
+                        dependencies: None,
+                    });
+                }
+            } else {
+                workqueue.register_finding(Executable {
+                    name: executable.clone(),
+                    folder: None,
+                    dependencies: None,
+                });
+            }
+        } else {
+            workqueue.register_finding(Executable {
+                name: executable.clone(),
+                folder: None,
+                dependencies: None,
+            });
+        }
     }
+
+    workqueue.executables_found
 }

@@ -46,5 +46,20 @@ fn main() {
     println!("Looking for dependencies of binary {}\n", binary_filename);
     println!("Assuming working directory: {}\n", binary_dir);
 
-    lookup_executable_dependencies(&binary_path, &context);
+    // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
+    let executables = lookup_executable_dependencies(&binary_filename, &context);
+
+    for e in executables {
+        println!("Found executable {}\n", &e.0);
+        if let Some(folder) = e.1.folder {
+            println!("\tcontaining folder: {}", folder);
+        }
+        if let Some(deps) = e.1.dependencies {
+            println!("\tdependencies:");
+            for d in deps {
+                println!("\t\t{}", d);
+            }
+        }
+        println!();
+    }
 }
