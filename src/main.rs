@@ -1,4 +1,4 @@
-use crate::dependency_runner::{Context, lookup_executable_dependencies};
+use crate::dependency_runner::{Context, lookup_executable_dependencies, LookupResult};
 
 mod dependency_runner;
 
@@ -47,19 +47,29 @@ fn main() {
     println!("Assuming working directory: {}\n", binary_dir);
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables = lookup_executable_dependencies(&binary_filename, &context);
+    let executables = lookup_executable_dependencies(&binary_filename, &context, 2, true);
 
-    for e in executables {
-        println!("Found executable {}\n", &e.0);
-        if let Some(folder) = e.1.folder {
-            println!("\tcontaining folder: {}", folder);
-        }
-        if let Some(deps) = e.1.dependencies {
-            println!("\tdependencies:");
-            for d in deps {
-                println!("\t\t{}", d);
+    let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
+    sorted_executables.sort_by(|e1, e2| e1.depth.cmp(&e2.depth));
+
+    for e in sorted_executables {
+        if !e.is_system.unwrap_or(false) {
+            if let Some(folder) = e.folder {
+                println!("Found executable {}\n", &e.name);
+                println!("\tDepth: {}", &e.depth);
+                println!("\tcontaining folder: {}", folder);
+
+                if let Some(deps) = e.dependencies {
+                    println!("\tdependencies:");
+                    for d in deps {
+                        println!("\t\t{}", d);
+                    }
+                }
+            } else {
+                println!("Executable {} not found\n", &e.name);
             }
+            println!();
+
         }
-        println!();
     }
 }

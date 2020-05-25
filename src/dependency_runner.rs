@@ -11,6 +11,12 @@ pub enum Error {
     ProcessingError(pelite::Error),
 }
 
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::CouldNotOpenFile(e)
+    }
+}
+
 #[cfg(windows)]
 fn get_winapi_directory(
     a: unsafe extern "system" fn(
@@ -148,33 +154,51 @@ impl Context {
         ret.extend(self.env_path.iter().cloned());
         ret
     }
+
+    fn is_system_dir(&self, dir: &str) -> bool {
+        dir == self.sys_dir || dir == self.win_dir
+    }
 }
 
-fn test_executable_in_path(filename: &str, path: &str) -> Result<bool, Error> {
-    use crate::dependency_runner::Error::CouldNotOpenFile;
-    let fullpath = Path::new(path).join(filename);
-    let attr = std::fs::metadata(fullpath).map_err(|e| CouldNotOpenFile(e))?;
-    Ok(attr.is_file())
+fn test_file_in_path_case_insensitive(filename: &str, path: &str) -> Result<Option<String>, Error> {
+    let lower_filename = filename.to_lowercase();
+    let matching_entries: Vec<_> = std::fs::read_dir(path)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.metadata().map_or_else(|_| false, |m| m.is_file()))
+        .filter_map(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .map_or_else(|| None, |s| Some(s.to_owned()))
+        })
+        .filter(|s| s.to_lowercase() == lower_filename)
+        .collect();
+    if matching_entries.len() == 1 {
+        Ok(matching_entries.first().cloned())
+    } else {
+        Ok(None)
+    }
 }
 
 #[derive(Debug)]
-pub enum LookupResult {
-    Found(String),
-    // the string is the containing directory
-    NotFound,
-}
-
-#[derive(Debug)]
-pub struct Executable {
+pub struct LookupQuery {
     name: String,
+    depth: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct LookupResult {
+    pub(crate) name: String,
+    pub(crate) depth: usize,
+    pub(crate) is_system: Option<bool>,
     pub(crate) folder: Option<String>,
     pub(crate) dependencies: Option<Vec<String>>,
 }
 
-type Executables = std::collections::HashMap<String, Executable>;
+type Executables = std::collections::HashMap<String, LookupResult>;
 
 struct Workqueue {
-    executables_to_lookup: Vec<String>,
+    executables_to_lookup: Vec<LookupQuery>,
     executables_found: Executables, // using filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
 }
 
@@ -188,19 +212,22 @@ impl Workqueue {
 
     // the user enqueues an executable; the workers enqueue the dependencies of those that were found
     // (skip the dependencies that have already been found)
-    fn enqueue(&mut self, executable_name: &str) {
+    fn enqueue(&mut self, executable_name: &str, depth: usize) {
         if !self.executables_found.contains_key(executable_name) {
-            self.executables_to_lookup.push(executable_name.to_string())
+            self.executables_to_lookup.push(LookupQuery {
+                name: executable_name.to_string(),
+                depth,
+            })
         }
     }
 
     // the workers fetch work to be done (the name of a DLL to be found)
-    fn pop(&mut self) -> Option<String> {
+    fn pop(&mut self) -> Option<LookupQuery> {
         self.executables_to_lookup.pop()
     }
 
     // the workers register the executable that was found for the given name; the function checks for uniqueness
-    fn register_finding(&mut self, found: Executable) {
+    fn register_finding(&mut self, found: LookupResult) {
         if self.executables_found.contains_key(&found.name) {
             if found.folder != self.executables_found[&found.name].folder {
                 panic!(
@@ -214,60 +241,84 @@ impl Workqueue {
     }
 }
 
-// returns the directory containing the executable, if found
-pub fn lookup_executable(filename: &str, context: &Context) -> Result<LookupResult, Error> {
+// returns the actual full path to the executable, if found
+pub fn search_file(filename: &str, context: &Context) -> Result<Option<String>, Error> {
     let search_path = context.search_path();
     for d in search_path {
-        if let Ok(found) = test_executable_in_path(filename, &d) {
-            if found {
-                return Ok(LookupResult::Found(d));
+        if let Ok(found) = test_file_in_path_case_insensitive(filename, &d) {
+            if let Some(actual_filename) = found {
+                let mut p = std::path::PathBuf::new();
+                p.push(d);
+                p.push(actual_filename);
+                return Ok(p.to_str().map(|s| s.to_owned()));
             }
         }
     }
 
-    Ok(LookupResult::NotFound)
+    Ok(None)
 }
 
-pub fn lookup_executable_dependencies(filename: &str, context: &Context) -> Executables {
+pub fn lookup_executable_dependencies(
+    filename: &str,
+    context: &Context,
+    max_depth: usize,
+    skip_system_dlls_deps: bool,
+) -> Executables {
     println!("inspecting {}", filename);
 
     let mut workqueue = Workqueue::new();
-    workqueue.enqueue(filename);
+    workqueue.enqueue(filename, 0);
 
-    while let Some(executable) = workqueue.pop() {
-        if let Ok(l) = lookup_executable(&executable, &context) {
-            if let LookupResult::Found(folder) = l {
-                let fullpath = folder.to_string() + "/" + &executable;
-                if let Ok(dependencies) = dlls_imported_by_executable(&fullpath) {
-                    for d in &dependencies {
-                        workqueue.enqueue(d);
+    while let Some(lookup_query) = workqueue.pop() {
+        if lookup_query.depth <= max_depth {
+            let executable = lookup_query.name;
+            let depth = lookup_query.depth;
+            if let Ok(l) = search_file(&executable, &context) {
+                if let Some(fullpath) = l {
+                    let folder = Path::new(&fullpath).parent().unwrap().to_str().unwrap();
+                    let actual_name = Path::new(&fullpath).file_name().unwrap().to_str().unwrap();
+                    let is_system = context.is_system_dir(folder);
+                    if let Ok(dependencies) = dlls_imported_by_executable(&fullpath) {
+                        if !(skip_system_dlls_deps && is_system) {
+                            for d in &dependencies {
+                                workqueue.enqueue(d, depth + 1);
+                            }
+                        }
+
+                        workqueue.register_finding(LookupResult {
+                            name: actual_name.to_owned(),
+                            depth,
+                            is_system: Some(is_system),
+                            folder: Some(folder.to_owned()),
+                            dependencies: Some(dependencies),
+                        });
+                    } else {
+                        workqueue.register_finding(LookupResult {
+                            name: executable.clone(),
+                            depth,
+                            is_system: Some(is_system),
+                            folder: None,
+                            dependencies: None,
+                        });
                     }
-
-                    workqueue.register_finding(Executable {
-                        name: executable.clone(),
-                        folder: Some(folder),
-                        dependencies: Some(dependencies),
-                    });
                 } else {
-                    workqueue.register_finding(Executable {
+                    workqueue.register_finding(LookupResult {
                         name: executable.clone(),
+                        depth,
+                        is_system: None,
                         folder: None,
                         dependencies: None,
                     });
                 }
             } else {
-                workqueue.register_finding(Executable {
+                workqueue.register_finding(LookupResult {
                     name: executable.clone(),
+                    depth,
+                    is_system: None,
                     folder: None,
                     dependencies: None,
                 });
             }
-        } else {
-            workqueue.register_finding(Executable {
-                name: executable.clone(),
-                folder: None,
-                dependencies: None,
-            });
         }
     }
 
