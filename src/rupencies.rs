@@ -1,6 +1,8 @@
+#[cfg(windows)]
 extern crate winapi;
 
 use std::ffi::OsString;
+#[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
 
 #[derive(Debug)]
@@ -9,6 +11,7 @@ pub enum Error {
     ProcessingError(pelite::Error),
 }
 
+#[cfg(windows)]
 fn get_winapi_directory(
     a: unsafe extern "system" fn(
         winapi::um::winnt::LPWSTR,
@@ -33,10 +36,12 @@ fn get_winapi_directory(
     }
 }
 
+#[cfg(windows)]
 pub fn get_system_directory() -> Result<String, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW);
 }
 
+#[cfg(windows)]
 pub fn get_windows_directory() -> Result<String, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
@@ -76,10 +81,34 @@ pub struct Context {
 }
 
 impl Context {
+    #[cfg(windows)]
     pub fn new(app_dir: &str, app_wd: &str) -> Self {
         let app_dir = app_dir.to_string();
         let sys_dir = get_system_directory().unwrap();
         let win_dir = get_windows_directory().unwrap();
+        let app_wd = app_wd.to_string();
+
+        let path_str = std::env::var_os("PATH")
+            .unwrap_or(OsString::from(""))
+            .to_str()
+            .unwrap()
+            .to_string();
+        let env_path: Vec<String> = path_str.split(";").map(|s| s.to_string()).collect();
+
+        Self {
+            app_dir,
+            sys_dir,
+            win_dir,
+            app_wd,
+            env_path,
+        }
+    }
+
+    #[cfg(not(windows))]
+    pub fn new(app_dir: &str, sys_dir: &str, win_dir: &str, app_wd: &str) -> Self {
+        let app_dir = app_dir.to_string();
+        let sys_dir = sys_dir.to_string();
+        let win_dir = win_dir.to_string();
         let app_wd = app_wd.to_string();
 
         let path_str = std::env::var_os("PATH")
