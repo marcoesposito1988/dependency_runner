@@ -46,8 +46,10 @@ fn main() {
     println!("Looking for dependencies of binary {}\n", binary_filename);
     println!("Assuming working directory: {}\n", binary_dir);
 
+    println!("Search path: {:?}", context.search_path());
+
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables = lookup_executable_dependencies(&binary_filename, &context, 2, true);
+    let executables = lookup_executable_dependencies(&binary_filename, &context, 6, true);
 
     let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth.cmp(&e2.depth));

@@ -78,6 +78,7 @@ pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
         .collect::<Vec<String>>())
 }
 
+#[derive(Debug)]
 pub struct Context {
     app_dir: String,
     sys_dir: String,
@@ -152,10 +153,20 @@ impl Context {
             self.app_wd.clone(),
         ];
         ret.extend(self.env_path.iter().cloned());
+
+        let downlevel = self.sys_dir.clone() + "/downlevel";
+        ret.insert(0, downlevel); // TODO: remove hack for API sets
+
         ret
     }
 
     fn is_system_dir(&self, dir: &str) -> bool {
+        //TODO: remove hack for API sets
+        let downlevel = self.sys_dir.clone() + "/downlevel";
+        if dir == downlevel {
+            return true;
+        }
+
         dir == self.sys_dir || dir == self.win_dir
     }
 }
