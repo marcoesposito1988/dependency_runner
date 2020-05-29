@@ -1,6 +1,10 @@
 #[cfg(windows)]
 extern crate winapi;
 
+extern crate serde;
+
+use serde::Serialize;
+
 use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
@@ -197,7 +201,7 @@ pub struct LookupQuery {
     depth: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct LookupResult {
     pub(crate) name: String,
     pub(crate) depth: usize,
@@ -273,7 +277,7 @@ pub fn lookup_executable_dependencies(
     filename: &str,
     context: &Context,
     max_depth: usize,
-    skip_system_dlls_deps: bool,
+    skip_system_dlls: bool,
 ) -> Executables {
     println!("inspecting {}", filename);
 
@@ -289,11 +293,14 @@ pub fn lookup_executable_dependencies(
                     let folder = Path::new(&fullpath).parent().unwrap().to_str().unwrap();
                     let actual_name = Path::new(&fullpath).file_name().unwrap().to_str().unwrap();
                     let is_system = context.is_system_dir(folder);
+
+                    if skip_system_dlls && is_system {
+                        continue;
+                    }
+
                     if let Ok(dependencies) = dlls_imported_by_executable(&fullpath) {
-                        if !(skip_system_dlls_deps && is_system) {
-                            for d in &dependencies {
-                                workqueue.enqueue(d, depth + 1);
-                            }
+                        for d in &dependencies {
+                            workqueue.enqueue(d, depth + 1);
                         }
 
                         workqueue.register_finding(LookupResult {

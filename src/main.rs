@@ -54,24 +54,46 @@ fn main() {
     let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth.cmp(&e2.depth));
 
-    for e in sorted_executables {
-        if !e.is_system.unwrap_or(false) {
-            if let Some(folder) = e.folder {
-                println!("Found executable {}\n", &e.name);
-                println!("\tDepth: {}", &e.depth);
-                println!("\tcontaining folder: {}", folder);
+    let j = serde_json::to_string(&sorted_executables);
+    if let Ok(js) = j {
+        use std::io::prelude::*;
+        let path = std::path::Path::new("/tmp/deps.json");
+        let display = path.display();
 
-                if let Some(deps) = e.dependencies {
-                    println!("\tdependencies:");
-                    for d in deps {
-                        println!("\t\t{}", d);
-                    }
-                }
-            } else {
-                println!("Executable {} not found\n", &e.name);
-            }
-            println!();
+        // Open a file in write-only mode, returns `io::Result<File>`
+        let mut file = match std::fs::File::create(&path) {
+            Err(why) => panic!("couldn't create {}: {}", display, why),
+            Ok(file) => file,
+        };
 
+        // Write the `LOREM_IPSUM` string to `file`, returns `io::Result<()>`
+        match file.write_all(js.as_bytes()) {
+            Err(why) => panic!("couldn't write to {}: {}", display, why),
+            Ok(_) => println!("successfully wrote to {}", display),
         }
+    } else {
+        println!("Error serializing");
     }
+
+
+    // for e in sorted_executables {
+    //     if !e.is_system.unwrap_or(false) {
+    //         if let Some(folder) = e.folder {
+    //             println!("Found executable {}\n", &e.name);
+    //             println!("\tDepth: {}", &e.depth);
+    //             println!("\tcontaining folder: {}", folder);
+    //
+    //             if let Some(deps) = e.dependencies {
+    //                 println!("\tdependencies:");
+    //                 for d in deps {
+    //                     println!("\t\t{}", d);
+    //                 }
+    //             }
+    //         } else {
+    //             println!("Executable {} not found\n", &e.name);
+    //         }
+    //         println!();
+    //
+    //     }
+    // }
 }
