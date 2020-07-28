@@ -256,7 +256,7 @@ pub struct LookupQuery {
 #[derive(Debug, Clone, Serialize)]
 pub struct LookupResult {
     pub(crate) name: String,
-    pub(crate) depth: usize,
+    pub(crate) depth_first_appearance: usize,
     pub(crate) is_system: Option<bool>,
     pub(crate) folder: Option<String>,
     pub(crate) dependencies: Option<Vec<String>>,
@@ -387,7 +387,7 @@ pub fn lookup_executable_dependencies(
 
                         workqueue.register_finding(LookupResult {
                             name: actual_name.to_owned(),
-                            depth,
+                            depth_first_appearance: depth,
                             is_system: Some(is_system),
                             folder: Some(folder.to_owned()),
                             dependencies: Some(dependencies),
@@ -395,7 +395,7 @@ pub fn lookup_executable_dependencies(
                     } else {
                         workqueue.register_finding(LookupResult {
                             name: executable.clone(),
-                            depth,
+                            depth_first_appearance: depth,
                             is_system: Some(is_system),
                             folder: None,
                             dependencies: None,
@@ -404,7 +404,7 @@ pub fn lookup_executable_dependencies(
                 } else {
                     workqueue.register_finding(LookupResult {
                         name: executable.clone(),
-                        depth,
+                        depth_first_appearance: depth,
                         is_system: None,
                         folder: None,
                         dependencies: None,
@@ -413,7 +413,7 @@ pub fn lookup_executable_dependencies(
             } else {
                 workqueue.register_finding(LookupResult {
                     name: executable.clone(),
-                    depth,
+                    depth_first_appearance: depth,
                     is_system: None,
                     folder: None,
                     dependencies: None,
@@ -477,7 +477,10 @@ impl ExecutablesTreeView {
     }
 
     pub fn new(exes: &Executables) -> Self {
-        let root_nodes: Vec<&LookupResult> = exes.values().filter(|le| le.depth == 0).collect();
+        let root_nodes: Vec<&LookupResult> = exes
+            .values()
+            .filter(|le| le.depth_first_appearance == 0)
+            .collect();
 
         if root_nodes.len() > 1 {
             panic!("Found multiple root nodes in the Executables");
