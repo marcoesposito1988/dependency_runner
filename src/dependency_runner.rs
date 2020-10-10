@@ -3,6 +3,7 @@ extern crate winapi;
 
 extern crate pelite;
 extern crate serde;
+extern crate thiserror;
 
 use pelite::pe64::{Pe, PeFile};
 use serde::Serialize;
@@ -14,16 +15,20 @@ use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
 
-#[derive(Debug)]
-pub enum Error {
-    CouldNotOpenFile(std::io::Error),
-    ProcessingError(pelite::Error),
-}
+use thiserror::Error;
 
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Error::CouldNotOpenFile(e)
-    }
+#[derive(Error, Debug)]
+pub enum LookupError {
+    #[error("Read error")]
+    CouldNotOpenFile { source: std::io::Error },
+
+    #[error("PE file parse error")]
+    ProcessingError { source: pelite::Error },
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error(transparent)]
+    PEError(#[from] pelite::Error),
 }
 
 #[cfg(windows)]
@@ -63,20 +68,20 @@ pub fn get_windows_directory() -> Result<String, std::io::Error> {
 
 pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
     path: &P,
-) -> Result<Vec<String>, Error> {
-    use crate::dependency_runner::Error::{CouldNotOpenFile, ProcessingError};
+) -> Result<Vec<String>, LookupError> {
+    use crate::dependency_runner::LookupError::{CouldNotOpenFile, ProcessingError};
     let path = path.as_ref();
-    let map = pelite::FileMap::open(path).map_err(|e| CouldNotOpenFile(e))?;
-    let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError(e))?;
+    let map = pelite::FileMap::open(path).map_err(|e| CouldNotOpenFile { source: e })?;
+    let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError { source: e })?;
 
     // Access the import directory
-    let imports = file.imports().map_err(|e| ProcessingError(e))?;
+    let imports = file.imports().map_err(|e| ProcessingError { source: e })?;
 
     let names: Vec<&pelite::util::CStr> = imports
         .iter()
         .map(|desc| desc.dll_name())
         .collect::<Result<Vec<&pelite::util::CStr>, pelite::Error>>()
-        .map_err(|e| ProcessingError(e))?;
+        .map_err(|e| ProcessingError { source: e })?;
     Ok(names
         .iter()
         .filter_map(|s| s.to_str().ok())
@@ -227,7 +232,10 @@ impl LookupContext {
     }
 }
 
-fn test_file_in_path_case_insensitive(filename: &str, path: &str) -> Result<Option<String>, Error> {
+fn test_file_in_path_case_insensitive(
+    filename: &str,
+    path: &str,
+) -> Result<Option<String>, LookupError> {
     let lower_filename = filename.to_lowercase();
     let matching_entries: Vec<_> = std::fs::read_dir(path)?
         .filter_map(|entry| entry.ok())
@@ -337,7 +345,7 @@ impl Workqueue {
 }
 
 // returns the actual full path to the executable, if found
-pub fn search_file(filename: &str, context: &LookupContext) -> Result<Option<String>, Error> {
+pub fn search_file(filename: &str, context: &LookupContext) -> Result<Option<String>, LookupError> {
     let search_path = context.search_path();
     for d in search_path {
         if let Ok(found) = test_file_in_path_case_insensitive(filename, &d) {
