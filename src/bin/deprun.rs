@@ -1,9 +1,7 @@
 extern crate dependency_runner;
 
-use dependency_runner::{
-    lookup_executable_dependencies, ExecutablesTreeNode, ExecutablesTreeView, LookupContext,
-    LookupResult,
-};
+use dependency_runner::models::{ExecutablesTreeNode, ExecutablesTreeView};
+use dependency_runner::{lookup_executable_dependencies_recursive, LookupContext, LookupResult};
 
 use anyhow::Context;
 use clap::{App, Arg};
@@ -103,7 +101,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables = lookup_executable_dependencies(&binary_filename, &context, 6, true);
+    let executables = lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true);
 
     let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
