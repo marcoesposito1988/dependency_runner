@@ -22,6 +22,11 @@ fn main() {
 
     let binary_path = args.get(1).unwrap();
 
+    if !std::path::Path::new(binary_path).exists() {
+        println!("Specified file not found at {}", binary_path);
+        return;
+    }
+
     let binary_dir = std::path::Path::new(binary_path)
         .parent()
         .unwrap()
@@ -106,7 +111,7 @@ fn main() {
             Ok(file) => file,
         };
 
-        // Write the `LOREM_IPSUM` string to `file`, returns `io::Result<()>`
+        // Write to `file`, returns `io::Result<()>`
         match file.write_all(js.as_bytes()) {
             Err(why) => panic!("couldn't write to {}: {}", display, why),
             Ok(_) => println!("successfully wrote to {}", display),
