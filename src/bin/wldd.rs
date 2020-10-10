@@ -42,6 +42,12 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
+    let binary_dir = std::path::Path::new(binary_path)
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
     let binary_filename = std::path::Path::new(binary_path)
         .file_name()
         .unwrap()
