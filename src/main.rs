@@ -1,10 +1,13 @@
 mod dependency_runner;
 
 use crate::dependency_runner::{
-    lookup_executable_dependencies, Context, ExecutablesTreeNode, ExecutablesTreeView, LookupResult,
+    lookup_executable_dependencies, ExecutablesTreeNode, ExecutablesTreeView, LookupContext,
+    LookupResult,
 };
 
-fn main() {
+use anyhow::Context;
+
+fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
     #[cfg(windows)]
@@ -16,15 +19,15 @@ fn main() {
     // TODO: proper argument passing
     #[cfg(not(windows))]
     if args.len() != 2 && args.len() != 4 {
-        println!("Usage: dependency_runner <executable> <system directory> <windows directory> or dependency_runner <executable> to deduce the rest");
-        return;
+        eprintln!("Usage: dependency_runner <executable> <system directory> <windows directory> or dependency_runner <executable> to deduce the rest");
+        std::process::exit(1);
     }
 
     let binary_path = args.get(1).unwrap();
 
     if !std::path::Path::new(binary_path).exists() {
-        println!("Specified file not found at {}", binary_path);
-        return;
+        eprintln!("Specified file not found at {}", binary_path);
+        std::process::exit(1);
     }
 
     let binary_dir = std::path::Path::new(binary_path)
@@ -44,13 +47,13 @@ fn main() {
     let context = if args.len() == 4 {
         let sys_dir = args.get(2).unwrap();
         let win_dir = args.get(3).unwrap();
-        Context::new(&binary_dir, &sys_dir, &win_dir, &binary_dir)
+        LookupContext::new(&binary_dir, &sys_dir, &win_dir, &binary_dir)
     } else {
-        Context::deduce_from_executable_location(binary_path).unwrap()
+        LookupContext::deduce_from_executable_location(binary_path).unwrap()
     };
 
     #[cfg(windows)]
-    let context = Context::new(&binary_dir, &binary_dir);
+    let context = LookupContext::new(&binary_dir, &binary_dir);
 
     println!("Looking for dependencies of binary {}\n", binary_filename);
     println!("Assuming working directory: {}\n", binary_dir);
@@ -92,31 +95,31 @@ fn main() {
     exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
         if let Some(lr) = executables.get(&n.name) {
             if lr.is_system.is_some() && !lr.is_system.unwrap() {
-                println!("{}{}", "\t".repeat(n.depth), n.name);
+                println!(
+                    "{}{} => {}",
+                    "\t".repeat(n.depth),
+                    n.name,
+                    lr.folder.as_ref().unwrap()
+                );
             }
         }
     });
 
     // JSON representation
     //
-    let j = serde_json::to_string(&sorted_executables);
-    if let Ok(js) = j {
-        use std::io::prelude::*;
-        let path = std::path::Path::new("/tmp/deps.json");
-        let display = path.display();
+    let js = serde_json::to_string(&sorted_executables).context("Error serializing")?;
 
-        // Open a file in write-only mode, returns `io::Result<File>`
-        let mut file = match std::fs::File::create(&path) {
-            Err(why) => panic!("couldn't create {}: {}", display, why),
-            Ok(file) => file,
-        };
+    use std::io::prelude::*;
+    let path = std::path::Path::new("/tmp/deps.json");
+    let display = path.display();
 
-        // Write to `file`, returns `io::Result<()>`
-        match file.write_all(js.as_bytes()) {
-            Err(why) => panic!("couldn't write to {}: {}", display, why),
-            Ok(_) => println!("successfully wrote to {}", display),
-        }
-    } else {
-        println!("Error serializing");
-    }
+    // Open a file in write-only mode, returns `io::Result<File>`
+    let mut file = std::fs::File::create(&path).context(format!("couldn't create {}", display))?;
+
+    // Write to `file`, returns `io::Result<()>`
+    file.write_all(js.as_bytes())
+        .context(format!("couldn't write to {}", display))?;
+    println!("successfully wrote to {}", display);
+
+    Ok(())
 }

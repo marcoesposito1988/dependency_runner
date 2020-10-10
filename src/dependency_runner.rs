@@ -85,7 +85,7 @@ pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
 }
 
 #[derive(Debug)]
-pub struct Context {
+pub struct LookupContext {
     pub app_dir: String,
     pub sys_dir: String,
     pub win_dir: String,
@@ -93,7 +93,7 @@ pub struct Context {
     pub env_path: Vec<String>,
 }
 
-impl Context {
+impl LookupContext {
     #[cfg(windows)]
     pub fn new(app_dir: &str, app_wd: &str) -> Self {
         let app_dir = app_dir.to_string();
@@ -337,7 +337,7 @@ impl Workqueue {
 }
 
 // returns the actual full path to the executable, if found
-pub fn search_file(filename: &str, context: &Context) -> Result<Option<String>, Error> {
+pub fn search_file(filename: &str, context: &LookupContext) -> Result<Option<String>, Error> {
     let search_path = context.search_path();
     for d in search_path {
         if let Ok(found) = test_file_in_path_case_insensitive(filename, &d) {
@@ -355,7 +355,7 @@ pub fn search_file(filename: &str, context: &Context) -> Result<Option<String>, 
 
 pub fn lookup_executable_dependencies(
     filename: &str,
-    context: &Context,
+    context: &LookupContext,
     max_depth: usize,
     skip_system_dlls: bool,
 ) -> Executables {
