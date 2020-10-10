@@ -122,28 +122,28 @@ impl LookupContext {
         }
     }
 
-    #[cfg(not(windows))]
-    pub fn new(app_dir: &str, sys_dir: &str, win_dir: &str, app_wd: &str) -> Self {
-        let app_dir = app_dir.to_string();
-        let sys_dir = sys_dir.to_string();
-        let win_dir = win_dir.to_string();
-        let app_wd = app_wd.to_string();
-
-        let path_str = std::env::var_os("PATH")
-            .unwrap_or(OsString::from(""))
-            .to_str()
-            .unwrap()
-            .to_string();
-        let env_path: Vec<String> = path_str.split(";").map(|s| s.to_string()).collect();
-
-        Self {
-            app_dir,
-            sys_dir,
-            win_dir,
-            app_wd,
-            env_path,
-        }
-    }
+    // #[cfg(not(windows))]
+    // pub fn new(app_dir: &str, sys_dir: &str, win_dir: &str, app_wd: &str) -> Self {
+    //     let app_dir = app_dir.to_string();
+    //     let sys_dir = sys_dir.to_string();
+    //     let win_dir = win_dir.to_string();
+    //     let app_wd = app_wd.to_string();
+    //
+    //     let path_str = std::env::var_os("PATH")
+    //         .unwrap_or(OsString::from(""))
+    //         .to_str()
+    //         .unwrap()
+    //         .to_string();
+    //     let env_path: Vec<String> = path_str.split(";").map(|s| s.to_string()).collect();
+    //
+    //     Self {
+    //         app_dir,
+    //         sys_dir,
+    //         win_dir,
+    //         app_wd,
+    //         env_path,
+    //     }
+    // }
 
     // deduces sensible default values
     // working dir same as app dir, Windows and Windows/System32 in same partition as the exe

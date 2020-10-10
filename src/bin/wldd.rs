@@ -1,36 +1,47 @@
 extern crate dependency_runner;
 
+use clap::{App, Arg};
+
 use dependency_runner::{lookup_executable_dependencies, LookupContext, LookupResult};
 
 fn main() -> anyhow::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+    let matches = App::new("dependency_runner")
+        .version(env!("CARGO_PKG_VERSION"))
+        .author("Marco Esposito <marcoesposito1988@gmail.com>")
+        .about("ldd for Windows - and more!")
+        .arg(
+            Arg::with_name("INPUT")
+                .help("Sets the input file to use")
+                .required(true)
+                .index(1),
+        )
+        .arg(Arg::with_name("System directory")
+            .short("s")
+            .long("sysdir")
+            .value_name("SYSDIR")
+            .help("Specify a Windows System32 directory other than X:\\Windows\\System32 (X is the partition where INPUT lies)")
+            .takes_value(true))
+        .arg(Arg::with_name("Windows directory")
+            .short("w")
+            .long("windir")
+            .value_name("WINDIR")
+            .help("Specify a Windows directory other than X:\\Windows (X is the partition where INPUT lies)")
+            .takes_value(true))
+        .arg(Arg::with_name("v")
+            .short("v")
+            .multiple(true)
+            .help("Sets the level of verbosity"))
+        .get_matches();
 
-    #[cfg(windows)]
-    if args.len() < 2 {
-        println!("You must pass the path to the binary!");
-        return;
-    }
+    let verbose = matches.occurrences_of("v") > 0;
 
-    // TODO: proper argument passing
-    #[cfg(not(windows))]
-    if args.len() != 2 && args.len() != 4 {
-        eprintln!("Usage: dependency_runner <executable> <system directory> <windows directory> or dependency_runner <executable> to deduce the rest");
-        std::process::exit(1);
-    }
-
-    let binary_path = args.get(1).unwrap();
+    let binary_path = matches.value_of("INPUT").unwrap();
 
     if !std::path::Path::new(binary_path).exists() {
         eprintln!("Specified file not found at {}", binary_path);
         std::process::exit(1);
     }
 
-    let binary_dir = std::path::Path::new(binary_path)
-        .parent()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
     let binary_filename = std::path::Path::new(binary_path)
         .file_name()
         .unwrap()
@@ -38,17 +49,34 @@ fn main() -> anyhow::Result<()> {
         .unwrap()
         .to_string();
 
-    #[cfg(not(windows))]
-    let context = if args.len() == 4 {
-        let sys_dir = args.get(2).unwrap();
-        let win_dir = args.get(3).unwrap();
-        LookupContext::new(&binary_dir, &sys_dir, &win_dir, &binary_dir)
-    } else {
-        LookupContext::deduce_from_executable_location(binary_path).unwrap()
-    };
+    let context = {
+        #[cfg(not(windows))]
+        let mut context = LookupContext::deduce_from_executable_location(binary_path).unwrap();
 
-    #[cfg(windows)]
-    let context = LookupContext::new(&binary_dir, &binary_dir);
+        #[cfg(windows)]
+        let mut context = LookupContext::new(&binary_dir, &binary_dir);
+
+        if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
+            context.sys_dir = overridden_sysdir.to_string();
+        } else {
+            if verbose {
+                println!(
+                    "System32 directory not specified, assumed {}",
+                    context.sys_dir
+                );
+            }
+        }
+        if let Some(overridden_windir) = matches.value_of("WINDIR") {
+            context.win_dir = overridden_windir.to_string();
+            if verbose {
+                println!(
+                    "Windows directory not specified, assumed {}",
+                    context.win_dir
+                );
+            }
+        }
+        context
+    };
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
     let executables = lookup_executable_dependencies(&binary_filename, &context, 6, true);
