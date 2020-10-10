@@ -69,7 +69,7 @@ pub fn get_windows_directory() -> Result<String, std::io::Error> {
 pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
     path: &P,
 ) -> Result<Vec<String>, LookupError> {
-    use crate::dependency_runner::LookupError::{CouldNotOpenFile, ProcessingError};
+    use LookupError::{CouldNotOpenFile, ProcessingError};
     let path = path.as_ref();
     let map = pelite::FileMap::open(path).map_err(|e| CouldNotOpenFile { source: e })?;
     let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError { source: e })?;
@@ -263,11 +263,11 @@ pub struct LookupQuery {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LookupResult {
-    pub(crate) name: String,
-    pub(crate) depth_first_appearance: usize,
-    pub(crate) is_system: Option<bool>,
-    pub(crate) folder: Option<String>,
-    pub(crate) dependencies: Option<Vec<String>>,
+    pub name: String,
+    pub depth_first_appearance: usize,
+    pub is_system: Option<bool>,
+    pub folder: Option<String>,
+    pub dependencies: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -367,8 +367,6 @@ pub fn lookup_executable_dependencies(
     max_depth: usize,
     skip_system_dlls: bool,
 ) -> Executables {
-    println!("inspecting {}", filename);
-
     let mut workqueue = Workqueue::new();
     workqueue.enqueue(filename, 0);
 
@@ -429,7 +427,6 @@ pub fn lookup_executable_dependencies(
             }
         }
     }
-    println!("finished inspecting {}", filename);
 
     workqueue.executables_found
 }

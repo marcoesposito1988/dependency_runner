@@ -1,6 +1,6 @@
-mod dependency_runner;
+mod lib;
 
-use crate::dependency_runner::{
+use crate::lib::{
     lookup_executable_dependencies, ExecutablesTreeNode, ExecutablesTreeView, LookupContext,
     LookupResult,
 };
