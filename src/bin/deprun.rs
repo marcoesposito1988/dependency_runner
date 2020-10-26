@@ -18,10 +18,10 @@ fn main() -> anyhow::Result<()> {
                 .index(1),
         )
         .arg(
-            Arg::with_name("OUTPUT_JSON")
+            Arg::with_name("OUTPUT_JSON_PATH")
                 .short("j")
                 .long("output_json_path")
-                .value_name("OUTJSON_PATH")
+                .value_name("OUTPUT_JSON_PATH")
                 .help("Sets the path for the output JSON file")
                 .takes_value(true)
         )
@@ -147,7 +147,7 @@ fn main() -> anyhow::Result<()> {
 
     // JSON representation
 
-    if let Some(json_output_path) = matches.value_of("OUTJSON_PATH") {
+    if let Some(json_output_path) = matches.value_of("OUTPUT_JSON_PATH") {
         let js = serde_json::to_string(&sorted_executables).context("Error serializing")?;
 
         use std::io::prelude::*;
