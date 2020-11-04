@@ -134,14 +134,14 @@ fn main() -> anyhow::Result<()> {
     let exe_tree = ExecutablesTreeView::new(&executables);
     exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
         if let Some(lr) = executables.get(&n.name) {
-            if lr.is_system.is_some() && !lr.is_system.unwrap() {
-                println!(
-                    "{}{} => {}",
-                    "\t".repeat(n.depth),
-                    n.name,
-                    lr.folder.as_ref().unwrap()
-                );
-            }
+            println!(
+                "{}{} => {}",
+                "\t".repeat(n.depth),
+                n.name,
+                lr.folder.as_ref().unwrap_or(&"not found".to_owned())
+            );
+        } else {
+            println!("no data for executable {}", &n.name);
         }
     });
 
