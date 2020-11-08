@@ -11,8 +11,8 @@ mod workqueue;
 pub mod context;
 pub mod models;
 
-use crate::common::Details;
-pub use crate::common::{Executables, LookupError, LookupQuery, LookupResult};
+use crate::common::ExecutableDetails;
+pub use crate::common::{Executable, LookupError, LookupQuery, LookupResult};
 pub use crate::context::LookupContext;
 
 pub fn lookup_executable_dependencies<P: AsRef<Path> + ?Sized>(
@@ -43,7 +43,7 @@ pub fn lookup_executable_dependencies_recursive(
     context: &LookupContext,
     max_depth: usize,
     skip_system_dlls: bool,
-) -> Result<Executables, LookupError> {
+) -> Result<LookupResult, LookupError> {
     let mut workqueue = Workqueue::new();
     workqueue.enqueue(filename, 0);
 
@@ -67,22 +67,22 @@ pub fn lookup_executable_dependencies_recursive(
                         }
                     }
 
-                    workqueue.register_finding(LookupResult {
+                    workqueue.register_finding(Executable {
                         name: actual_name.to_owned(),
                         depth_first_appearance: depth,
                         found: true,
-                        details: Some(Details {
+                        details: Some(ExecutableDetails {
                             is_system,
                             folder: folder.to_owned(),
                             dependencies: Some(dependencies),
                         }),
                     });
                 } else {
-                    workqueue.register_finding(LookupResult {
+                    workqueue.register_finding(Executable {
                         name: executable.clone(),
                         depth_first_appearance: depth,
                         found: true,
-                        details: Some(Details {
+                        details: Some(ExecutableDetails {
                             is_system,
                             folder: folder.to_owned(),
                             dependencies: None,
@@ -90,7 +90,7 @@ pub fn lookup_executable_dependencies_recursive(
                     });
                 }
             } else {
-                workqueue.register_finding(LookupResult {
+                workqueue.register_finding(Executable {
                     name: executable.clone(),
                     depth_first_appearance: depth,
                     found: false,

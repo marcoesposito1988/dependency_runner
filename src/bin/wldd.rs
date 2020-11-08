@@ -2,7 +2,7 @@ extern crate dependency_runner;
 
 use clap::{App, Arg};
 
-use dependency_runner::{lookup_executable_dependencies_recursive, LookupContext, LookupResult};
+use dependency_runner::{lookup_executable_dependencies_recursive, Executable, LookupContext};
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")
@@ -97,7 +97,7 @@ fn main() -> anyhow::Result<()> {
     let executables =
         lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true)?;
 
-    let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
+    let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
 
     // printing in depth order

@@ -29,21 +29,21 @@ pub struct LookupQuery {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Details {
+pub struct ExecutableDetails {
     pub is_system: bool,
     pub folder: String,
     pub dependencies: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct LookupResult {
+pub struct Executable {
     pub name: String,
     pub depth_first_appearance: usize,
     pub found: bool,
-    pub details: Option<Details>,
+    pub details: Option<ExecutableDetails>,
 }
 
-impl LookupResult {
+impl Executable {
     pub fn full_path(&self) -> String {
         if let Some(details) = &self.details {
             details.folder.clone() + &self.name
@@ -54,22 +54,22 @@ impl LookupResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct Executables {
-    index: std::collections::HashMap<String, LookupResult>,
+pub struct LookupResult {
+    index: std::collections::HashMap<String, Executable>,
 }
 
-impl Executables {
+impl LookupResult {
     pub fn new() -> Self {
         Self {
             index: std::collections::HashMap::new(),
         }
     }
 
-    pub fn insert(&mut self, name: &str, lr: LookupResult) {
+    pub fn insert(&mut self, name: &str, lr: Executable) {
         self.index.insert(name.to_lowercase(), lr);
     }
 
-    pub fn get(&self, name: &str) -> Option<&LookupResult> {
+    pub fn get(&self, name: &str) -> Option<&Executable> {
         self.index.get(&name.to_lowercase())
     }
 
@@ -77,7 +77,7 @@ impl Executables {
         self.index.contains_key(&name.to_lowercase())
     }
 
-    pub fn values(&self) -> Values<'_, String, LookupResult> {
+    pub fn values(&self) -> Values<'_, String, Executable> {
         self.index.values()
     }
 }

@@ -1,7 +1,7 @@
 extern crate dependency_runner;
 
-use dependency_runner::models::{ExecutablesTreeNode, ExecutablesTreeView};
-use dependency_runner::{lookup_executable_dependencies_recursive, LookupContext, LookupResult};
+use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
+use dependency_runner::{lookup_executable_dependencies_recursive, Executable, LookupContext};
 
 use anyhow::Context;
 use clap::{App, Arg};
@@ -194,7 +194,7 @@ fn main() -> anyhow::Result<()> {
     let executables =
         lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true)?;
 
-    let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
+    let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
 
     // printing in depth order // TODO: arg to choose output format
@@ -222,8 +222,8 @@ fn main() -> anyhow::Result<()> {
 
     // printing in tree order
     //
-    let exe_tree = ExecutablesTreeView::new(&executables);
-    exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
+    let exe_tree = LookupResultTreeView::new(&executables);
+    exe_tree.visit_depth_first(|n: &LookupResultTreeNode| {
         if let Some(lr) = executables.get(&n.name) {
             if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(true) && !print_system_dlls) {
                 let folder = if !lr.found {

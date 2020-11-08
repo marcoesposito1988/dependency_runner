@@ -1,11 +1,11 @@
-use crate::{Executables, LookupResult};
+use crate::{Executable, LookupResult};
 
-// tree view of nodes referencing LookupResults in an Executables
+// tree view of nodes referencing Executables in a LookupResult
 // this is necessary for the QAbstractItemModel, because that requires that every node has a single parent
 // in our Executables DAG, a node can have multiple parents (and appear at multiple depths)
 // this class just provides a reified tree view of the DAG
 
-pub struct ExecutablesTreeNode {
+pub struct LookupResultTreeNode {
     pub name: String,
     pub parent: Option<String>,
     pub depth: usize,
@@ -13,22 +13,22 @@ pub struct ExecutablesTreeNode {
 }
 
 // ordered depth-first: root is first node
-pub struct ExecutablesTreeView {
-    pub arena: Vec<ExecutablesTreeNode>,
+pub struct LookupResultTreeView {
+    pub arena: Vec<LookupResultTreeNode>,
     pub index: std::collections::HashMap<String, usize>,
-    pub executables: Executables,
+    pub executables: LookupResult,
 }
 
-impl ExecutablesTreeView {
+impl LookupResultTreeView {
     fn add_to_arena(
         &mut self,
         parent: Option<String>,
         depth: usize,
-        lr: &LookupResult,
-        exes: &Executables,
+        lr: &Executable,
+        exes: &LookupResult,
     ) {
         let this_index = self.arena.len();
-        self.arena.push(ExecutablesTreeNode {
+        self.arena.push(LookupResultTreeNode {
             name: lr.name.clone(),
             depth,
             parent,
@@ -55,8 +55,8 @@ impl ExecutablesTreeView {
         self.index.insert(lr.name.clone(), this_index);
     }
 
-    pub fn new(exes: &Executables) -> Self {
-        let root_nodes: Vec<&LookupResult> = exes
+    pub fn new(exes: &LookupResult) -> Self {
+        let root_nodes: Vec<&Executable> = exes
             .values()
             .filter(|le| le.depth_first_appearance == 0)
             .collect();
@@ -84,7 +84,7 @@ impl ExecutablesTreeView {
         ret
     }
 
-    pub fn visit_depth_first(&self, f: impl Fn(&ExecutablesTreeNode) -> ()) {
+    pub fn visit_depth_first(&self, f: impl Fn(&LookupResultTreeNode) -> ()) {
         // the arena currently holds a depth-first linearization of the tree
         for n in &self.arena {
             f(n)

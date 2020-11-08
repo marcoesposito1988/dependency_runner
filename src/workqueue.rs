@@ -1,15 +1,15 @@
-use crate::{Executables, LookupQuery, LookupResult};
+use crate::{Executable, LookupQuery, LookupResult};
 
 pub(crate) struct Workqueue {
     executables_to_lookup: Vec<LookupQuery>,
-    pub(crate) executables_found: Executables, // using lowercase filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
+    pub(crate) executables_found: LookupResult, // using lowercase filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
 }
 
 impl Workqueue {
     pub(crate) fn new() -> Self {
         Self {
             executables_to_lookup: Vec::new(),
-            executables_found: Executables::new(),
+            executables_found: LookupResult::new(),
         }
     }
 
@@ -30,7 +30,7 @@ impl Workqueue {
     }
 
     // the workers register the executable that was found for the given name; the function checks for uniqueness
-    pub(crate) fn register_finding(&mut self, new_finding: LookupResult) {
+    pub(crate) fn register_finding(&mut self, new_finding: Executable) {
         if let Some(older_finding) = self.executables_found.get(&new_finding.name) {
             eprintln!(
                 "Found two DLLs with the same name! {:?} and {:?}",
