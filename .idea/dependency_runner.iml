@@ -29,6 +29,16 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/serde_derive-22d82c74ba678255/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/serde_json-6858ec4ee1d99032/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/ryu-c4f97af0f7644768/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/anyhow-d56c8799cc854c4c/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/bitflags-5a40a5f9695e95a9/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/libc-bdb14340cd0ee80a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/memchr-ae4907bab4dc740b/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro2-398c91217b647864/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/ryu-6fbfd7d7271f9a24/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/serde-30be065f871369bb/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/serde_derive-735430c339c7c93a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/serde_json-708dbc9835a5bc43/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-d31b7f4382e31960/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

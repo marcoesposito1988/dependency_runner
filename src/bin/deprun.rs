@@ -1,10 +1,12 @@
 extern crate dependency_runner;
 
 use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
-use dependency_runner::{lookup_executable_dependencies_recursive, Executable, LookupContext};
+use dependency_runner::{lookup, Executable, Executables, Query};
 
 use anyhow::Context;
+
 use clap::{App, Arg};
+use std::path::{Path, PathBuf};
 
 fn main() -> anyhow::Result<()> {
     let args = App::new("dependency_runner")
@@ -135,41 +137,46 @@ fn main() -> anyhow::Result<()> {
         .unwrap()
         .to_string();
 
-    let context = {
-        let mut context = LookupContext::deduce_from_executable_location(binary_path).unwrap();
+    let query = {
+        let mut query = Query::deduce_from_executable_location(binary_path)?;
 
         if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
-            context.sys_dir = overridden_sysdir.to_string();
+            query.system.sys_dir = overridden_sysdir.to_string().parse()?;
         } else {
             if verbose {
                 println!(
                     "System32 directory not specified, assumed {}",
-                    context.sys_dir
+                    query.system.sys_dir.to_str().unwrap_or("---")
                 );
             }
         }
         if let Some(overridden_windir) = matches.value_of("WINDIR") {
-            context.win_dir = overridden_windir.to_string();
+            query.system.win_dir = overridden_windir.to_string().parse()?;
         } else {
             if verbose {
                 println!(
                     "Windows directory not specified, assumed {}",
-                    context.win_dir
+                    query.system.win_dir.to_str().unwrap_or("---")
                 );
             }
         }
         if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
-            context.app_wd = overridden_workdir.to_string();
+            query.working_dir = overridden_workdir.to_string().parse()?;
         } else {
             if verbose {
                 println!(
                     "Working directory not specified, taken that of current directory: {}",
-                    context.app_wd
+                    query.working_dir.to_str().unwrap_or("---")
                 );
             }
         }
         if let Some(overridden_path) = matches.value_of("PATH") {
-            context.env_path = overridden_path.split(";").map(str::to_string).collect();
+            query.system.path = Some(
+                overridden_path
+                    .split(";")
+                    .map(|s| PathBuf::from(s))
+                    .collect(),
+            );
         } else {
             if verbose {
                 #[cfg(windows)]
@@ -178,21 +185,21 @@ fn main() -> anyhow::Result<()> {
                     context.env_path
                 );
                 #[cfg(not(windows))]
-                println!("User path not specified, assumed: {:?}", context.env_path);
+                println!("User path not specified, assumed: {:?}", query.system.path);
             }
         }
-        context
+        query
     };
 
     if verbose {
         println!("Looking for dependencies of binary {}\n", binary_filename);
         println!("Assuming working directory: {}\n", binary_dir);
-        println!("Search path: {:?}", context.search_path());
+        let ctx = dependency_runner::Context::new(&query);
+        println!("Search path: {:?}", ctx.search_path());
     }
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables =
-        lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true)?;
+    let executables = lookup(query)?;
 
     let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
@@ -224,18 +231,18 @@ fn main() -> anyhow::Result<()> {
     //
     let exe_tree = LookupResultTreeView::new(&executables);
     exe_tree.visit_depth_first(|n: &LookupResultTreeNode| {
-        if let Some(lr) = executables.get(&n.name) {
+        if let Some(lr) = executables.get(n.name.as_ref()) {
             if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(true) && !print_system_dlls) {
                 let folder = if !lr.found {
                     "not found"
                 } else {
                     if let Some(details) = &lr.details {
-                        &details.folder
+                        details.folder.to_str().unwrap_or("INVALID")
                     } else {
                         "not searched"
                     }
                 };
-                println!("{}{} => {}", "\t".repeat(n.depth), n.name, folder);
+                println!("{}{} => {:?}", "\t".repeat(n.depth), n.name, folder);
             }
         } else {
             println!("no data for executable {}", &n.name);

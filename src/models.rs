@@ -1,4 +1,5 @@
-use crate::{Executable, LookupResult};
+use crate::{Executable, Executables};
+use std::ffi::OsString;
 
 // tree view of nodes referencing Executables in a LookupResult
 // this is necessary for the QAbstractItemModel, because that requires that every node has a single parent
@@ -16,46 +17,50 @@ pub struct LookupResultTreeNode {
 pub struct LookupResultTreeView {
     pub arena: Vec<LookupResultTreeNode>,
     pub index: std::collections::HashMap<String, usize>,
-    pub executables: LookupResult,
+    pub executables: Executables,
 }
 
 impl LookupResultTreeView {
     fn add_to_arena(
         &mut self,
-        parent: Option<String>,
+        parent: Option<OsString>,
         depth: usize,
         lr: &Executable,
-        exes: &LookupResult,
+        exes: &Executables,
     ) {
-        let this_index = self.arena.len();
-        self.arena.push(LookupResultTreeNode {
-            name: lr.name.clone(),
-            depth,
-            parent,
-            dependencies: Vec::new(), // will fill this later in new()
-        });
+        if let Some(name) = lr.name.to_str() {
+            let this_index = self.arena.len();
+            self.arena.push(LookupResultTreeNode {
+                name: name.to_owned(),
+                depth,
+                parent: parent.map(|p| p.to_str().unwrap_or("INVALID").to_owned()),
+                dependencies: Vec::new(), // will fill this later in new()
+            });
 
-        let mut this_deps: Vec<String> = Vec::new();
+            let mut this_deps: Vec<String> = Vec::new();
 
-        if let Some(dependencies) = &lr
-            .details
-            .as_ref()
-            .map(|det| &det.dependencies)
-            .unwrap_or(&None)
-        {
-            for dep in dependencies {
-                if let Some(dep_lr) = exes.get(&dep.to_lowercase()) {
-                    self.add_to_arena(Some(lr.name.clone()), depth + 1, dep_lr, exes);
-                    this_deps.push(dep.clone());
+            if let Some(dependencies) = &lr
+                .details
+                .as_ref()
+                .map(|det| &det.dependencies)
+                .unwrap_or(&None)
+            {
+                for dep in dependencies {
+                    let dep_lr: OsString = dep.to_lowercase().into();
+                    // if let Some(dep_lr) = exes.get(&dep.to_lowercase()) {
+                    if let Some(dep_lr) = exes.get(&dep_lr) {
+                        self.add_to_arena(Some(lr.name.clone()), depth + 1, dep_lr, exes);
+                        this_deps.push(dep.clone());
+                    }
                 }
             }
-        }
 
-        self.arena[this_index].dependencies = this_deps;
-        self.index.insert(lr.name.clone(), this_index);
+            self.arena[this_index].dependencies = this_deps;
+            self.index.insert(name.to_owned(), this_index);
+        }
     }
 
-    pub fn new(exes: &LookupResult) -> Self {
+    pub fn new(exes: &Executables) -> Self {
         let root_nodes: Vec<&Executable> = exes
             .values()
             .filter(|le| le.depth_first_appearance == 0)
