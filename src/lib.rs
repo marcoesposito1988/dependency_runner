@@ -5,7 +5,7 @@ pub use crate::context::Context;
 
 mod common;
 pub mod external;
-mod system;
+pub mod system;
 mod workqueue; // TODO make private
 
 pub mod context;

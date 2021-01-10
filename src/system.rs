@@ -10,6 +10,10 @@ use std::path::{Path, PathBuf};
 use crate::LookupError;
 use std::collections::HashMap;
 
+pub fn decanonicalize(s: &str) -> String {
+    s.replacen(r"\\?\", "", 1)
+}
+
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
 // the other modes are activated programmatically, and there is no hope to be able to handle that properly
@@ -37,12 +41,13 @@ impl WindowsSystem {
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
         let path_str = std::env::var("PATH");
         let path = path_str
-            .and_then(|s| s.split(";").map(|subs| Ok(PathBuf::from(subs))).collect()).ok();
+            .and_then(|s| Ok(s.split(";").filter_map(|subs|std::fs::canonicalize(subs).ok()
+            ).collect())).ok();
         Ok(Self {
             safe_dll_search_mode_on: None,
             known_dlls: None,
-            win_dir: get_windows_directory()?.into(),
-            sys_dir: get_system_directory()?.into(),
+            win_dir: get_windows_directory()?,
+            sys_dir: get_system_directory()?,
             path,
         })
     }
@@ -102,7 +107,7 @@ fn get_winapi_directory(
         winapi::um::winnt::LPWSTR,
         winapi::shared::minwindef::UINT,
     ) -> winapi::shared::minwindef::UINT,
-) -> Result<OsString, std::io::Error> {
+) -> Result<PathBuf, std::io::Error> {
     use std::io::Error;
 
     const BFR_SIZE: usize = 512;
@@ -113,17 +118,17 @@ fn get_winapi_directory(
         Err(Error::last_os_error())
     } else {
         let valid_bfr = &bfr[..ret as usize];
-        Ok(OsString::from_wide(valid_bfr))
+        std::fs::canonicalize(OsString::from_wide(valid_bfr))
     }
 }
 
 #[cfg(windows)]
-pub fn get_system_directory() -> Result<OsString, std::io::Error> {
+pub fn get_system_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW);
 }
 
 #[cfg(windows)]
-pub fn get_windows_directory() -> Result<OsString, std::io::Error> {
+pub fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 

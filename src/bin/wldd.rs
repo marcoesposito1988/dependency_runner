@@ -3,6 +3,7 @@ extern crate dependency_runner;
 use clap::{App, Arg};
 
 use dependency_runner::{lookup, Executable, Query};
+use dependency_runner::system::decanonicalize;
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")
@@ -85,11 +86,11 @@ fn main() -> anyhow::Result<()> {
         if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(true) && hide_system_dlls) {
             if e.found {
                 println!(
-                    "{}{} => {:?}",
+                    "{}{} => {}",
                     &prefix,
                     e.name.to_str().unwrap_or("---"),
                     e.full_path()
-                        .and_then(|p| { p.to_str().map(|f| f.to_owned()) })
+                        .and_then(|p| { p.to_str().map(|f|decanonicalize(f)) })
                         .unwrap_or("INVALID PATH".to_owned())
                 );
             } else {

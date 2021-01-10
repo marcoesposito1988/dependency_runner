@@ -25,6 +25,8 @@ pub enum LookupError {
     ContextDeductionError(String),
 
     #[error(transparent)]
+    VarError(#[from] std::env::VarError),
+    #[error(transparent)]
     RegexError(#[from] regex::Error),
     #[error(transparent)]
     IOError(#[from] std::io::Error),
@@ -57,8 +59,8 @@ impl Query {
         Ok(Self {
             system: WindowsSystem::current()?,
             target_exe: target_exe.as_ref().into(),
-            app_dir: app_dir.to_owned(),
-            working_dir: app_dir.to_owned(),
+            app_dir: app_dir.canonicalize()?,
+            working_dir: app_dir.canonicalize()?,
             max_depth: None,
             skip_system_dlls: true,
         })
