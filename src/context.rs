@@ -1,5 +1,4 @@
 use std::ffi::OsStr;
-#[cfg(not(windows))]
 use std::path::PathBuf;
 
 use crate::common::Query;

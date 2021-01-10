@@ -182,7 +182,7 @@ fn main() -> anyhow::Result<()> {
                 #[cfg(windows)]
                 println!(
                     "User path not specified, taken that of current shell: {:?}",
-                    context.env_path
+                    query.system.path
                 );
                 #[cfg(not(windows))]
                 println!("User path not specified, assumed: {:?}", query.system.path);

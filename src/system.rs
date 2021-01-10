@@ -30,21 +30,24 @@ pub struct WindowsSystem {
 
 impl WindowsSystem {
     #[cfg(windows)]
-    pub fn current() -> Self {
+    pub fn current() -> Result<Self, LookupError> {
         // TODO: read known dlls from HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs,
         // and mark their dependencies (which are not listed there) as known DLLs as well
         // https://lucasg.github.io/2017/06/07/listing-known-dlls/
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
-        Self {
+        let path_str = std::env::var("PATH");
+        let path = path_str
+            .and_then(|s| s.split(";").map(|subs| Ok(PathBuf::from(subs))).collect()).ok();
+        Ok(Self {
             safe_dll_search_mode_on: None,
             known_dlls: None,
-            win_dir: get_windows_directory(),
-            sys_dir: get_system_directory(),
-            path: std::env::var("PATH")
-                .and_then(|s| s.split(";").map(|subs| subs.into()).collect()),
-        }
+            win_dir: get_windows_directory()?.into(),
+            sys_dir: get_system_directory()?.into(),
+            path,
+        })
     }
 
+    #[cfg(not(windows))]
     pub fn from_exe_location<P: AsRef<Path>>(p: P) -> Result<Self, LookupError> {
         if let Some(root) = Self::find_root(&p) {
             Ok(Self::from_root(root))
@@ -99,7 +102,7 @@ fn get_winapi_directory(
         winapi::um::winnt::LPWSTR,
         winapi::shared::minwindef::UINT,
     ) -> winapi::shared::minwindef::UINT,
-) -> Result<String, std::io::Error> {
+) -> Result<OsString, std::io::Error> {
     use std::io::Error;
 
     const BFR_SIZE: usize = 512;
@@ -110,21 +113,17 @@ fn get_winapi_directory(
         Err(Error::last_os_error())
     } else {
         let valid_bfr = &bfr[..ret as usize];
-        let valid_str = OsString::from_wide(valid_bfr);
-        match valid_str.into_string() {
-            Ok(s) => Ok(s),
-            Err(_) => Err(Error::new(std::io::ErrorKind::Other, "oh no!")),
-        }
+        Ok(OsString::from_wide(valid_bfr))
     }
 }
 
 #[cfg(windows)]
-pub fn get_system_directory() -> Result<String, std::io::Error> {
+pub fn get_system_directory() -> Result<OsString, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW);
 }
 
 #[cfg(windows)]
-pub fn get_windows_directory() -> Result<String, std::io::Error> {
+pub fn get_windows_directory() -> Result<OsString, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 

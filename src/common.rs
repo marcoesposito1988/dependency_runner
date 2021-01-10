@@ -52,12 +52,11 @@ impl Query {
             .parent()
             .ok_or(LookupError::ContextDeductionError(
                 "Could not find application directory for given executable ".to_owned()
-                    + target_exe,
+                    + target_exe.as_ref().to_str().unwrap_or("---"),
             ))?;
         Ok(Self {
-            search_mode: DllSearchMode::SafeDllSearchModeOn,
-            system: WindowsSystem::current(),
-            target_exe: target_exe.into(),
+            system: WindowsSystem::current()?,
+            target_exe: target_exe.as_ref().into(),
             app_dir: app_dir.to_owned(),
             working_dir: app_dir.to_owned(),
             max_depth: None,
