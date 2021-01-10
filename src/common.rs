@@ -15,6 +15,9 @@ pub enum LookupError {
     #[error("PE file parse error")]
     ProcessingError { source: pelite::Error },
 
+    #[error("File system access error while scanning")]
+    ScanError(String),
+
     #[error("Visual Studio User settings file parse error")]
     ParseError(String),
 

@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 
 use crate::common::Query;
-use crate::system::test_file_in_path_case_insensitive;
+use crate::system::{find_file_in_folder_case_insensitive, WinFileSystemCache};
 #[cfg(windows)]
 use crate::system::{get_system_directory, get_windows_directory};
 use crate::LookupError;
@@ -40,9 +40,9 @@ pub struct ContextLookupResult {
     pub fullpath: PathBuf,
 }
 
-#[derive(Debug)]
 pub struct Context {
     pub entries: Vec<ContextEntry>,
+    fs_cache: std::cell::RefCell<WinFileSystemCache>,
 }
 
 impl Context {
@@ -119,7 +119,10 @@ impl Context {
             [system_entries, user_path_entries].concat()
         };
 
-        Self { entries }
+        Self {
+            entries,
+            fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
+        }
     }
 
     // linearize the lookup context into a single vector of directories
@@ -143,7 +146,11 @@ impl Context {
         filename: &OsStr,
     ) -> Result<Option<ContextLookupResult>, LookupError> {
         for e in &self.entries {
-            if let Ok(found) = test_file_in_path_case_insensitive(filename, e.path.as_ref()) {
+            if let Ok(found) = self
+                .fs_cache
+                .borrow_mut()
+                .test_file_in_folder_case_insensitive(filename, e.path.as_ref())
+            {
                 if let Some(actual_filename) = found {
                     let mut p = std::path::PathBuf::new();
                     p.push(e.path.clone());

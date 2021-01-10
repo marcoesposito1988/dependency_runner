@@ -9,6 +9,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
 use crate::LookupError;
+use std::collections::{HashMap, HashSet};
 
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
@@ -128,7 +129,7 @@ pub fn get_windows_directory() -> Result<String, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 
-pub(crate) fn test_file_in_path_case_insensitive<P: AsRef<Path>>(
+pub(crate) fn find_file_in_folder_case_insensitive<P: AsRef<Path>>(
     filename: P,
     path: P,
 ) -> Result<Option<PathBuf>, LookupError> {
@@ -150,4 +151,69 @@ pub(crate) fn test_file_in_path_case_insensitive<P: AsRef<Path>>(
         }
     }
     Ok(None)
+}
+
+pub(crate) struct WinFileSystemCache {
+    files_in_dirs: HashMap<String, HashMap<String, PathBuf>>,
+}
+
+impl WinFileSystemCache {
+    pub(crate) fn new() -> Self {
+        Self {
+            files_in_dirs: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn test_file_in_folder_case_insensitive<P: AsRef<Path>>(
+        &mut self,
+        filename: P,
+        folder: P,
+    ) -> Result<Option<PathBuf>, LookupError> {
+        let folder_str: String = folder
+            .as_ref()
+            .to_str()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not scan directory {:?}",
+                &folder.as_ref().to_str()
+            )))?
+            .to_owned();
+        if !self.files_in_dirs.contains_key(&folder_str) {
+            self.scan_folder(&folder);
+        }
+        let dir = self
+            .files_in_dirs
+            .get(&folder_str)
+            .ok_or(LookupError::ScanError(format!(
+                "Could not scan directory {:?}",
+                &folder.as_ref().to_str()
+            )))?;
+        Ok(dir
+            .get(&filename.as_ref().to_str().unwrap().to_lowercase())
+            .map(|p| p.to_owned()))
+    }
+
+    pub(crate) fn scan_folder<P: AsRef<Path>>(&mut self, folder: P) -> Result<(), LookupError> {
+        let folder_str: String = folder
+            .as_ref()
+            .to_str()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not scan directory {:?}",
+                &folder.as_ref().to_str()
+            )))?
+            .to_owned();
+        if !self.files_in_dirs.contains_key(&folder_str) {
+            let matching_entries: HashMap<String, PathBuf> = std::fs::read_dir(folder)?
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| entry.metadata().map_or_else(|_| false, |m| m.is_file()))
+                .filter_map(|entry| {
+                    entry
+                        .file_name()
+                        .to_str()
+                        .map(|s| (s.to_lowercase(), entry.file_name().into()))
+                })
+                .collect();
+            self.files_in_dirs.insert(folder_str, matching_entries);
+        }
+        Ok(())
+    }
 }
