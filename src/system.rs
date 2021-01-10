@@ -1,7 +1,6 @@
 #[cfg(windows)]
 extern crate winapi;
 
-use std::ffi::OsString;
 #[cfg(windows)]
 use std::ffi::OsString;
 #[cfg(windows)]
@@ -9,7 +8,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
 use crate::LookupError;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
@@ -129,30 +128,6 @@ pub fn get_windows_directory() -> Result<String, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 
-pub(crate) fn find_file_in_folder_case_insensitive<P: AsRef<Path>>(
-    filename: P,
-    path: P,
-) -> Result<Option<PathBuf>, LookupError> {
-    let matching_entries: Vec<OsString> = std::fs::read_dir(path)?
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.metadata().map_or_else(|_| false, |m| m.is_file()))
-        .filter_map(|entry| {
-            entry
-                .file_name().into()
-        })
-        .filter(|s|
-            // s.eq_ignore_ascii_case(&filename)) // TODO as soon as it's stable
-            s.to_str().map(|s2| s2.to_lowercase() == filename.as_ref().to_str().unwrap_or("").to_lowercase()).unwrap_or(false)
-        )
-        .collect();
-    if matching_entries.len() == 1 {
-        if let Some(s) = matching_entries.first() {
-            return Ok(Some(s.into()));
-        }
-    }
-    Ok(None)
-}
-
 pub(crate) struct WinFileSystemCache {
     files_in_dirs: HashMap<String, HashMap<String, PathBuf>>,
 }
@@ -178,7 +153,7 @@ impl WinFileSystemCache {
             )))?
             .to_owned();
         if !self.files_in_dirs.contains_key(&folder_str) {
-            self.scan_folder(&folder);
+            self.scan_folder(&folder)?;
         }
         let dir = self
             .files_in_dirs

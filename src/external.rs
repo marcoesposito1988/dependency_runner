@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{LookupError};
+use crate::LookupError;
 
 // Visual Studio
 
@@ -184,30 +184,25 @@ pub fn extract_executable_information_per_config_from_vcxproj<
     let mut executable_info_per_config: HashMap<String, VcxExecutableInformation> = configs
         .iter()
         .map(|&c| {
-            if let (e_dir, e_name, e_ext) = (
+            let (e_dir, e_name, e_ext) = (
                 &outdir_per_config[c],
                 &targetname_nodes[c],
                 &targetext_nodes[c],
-            ) {
-                // TODO: fix handling of win path from linux
-                if let Some(full_path) = std::path::Path::new(e_dir)
-                    .join(e_name)
-                    .join(e_ext)
-                    .to_str()
-                {
-                    Ok((
-                        c.clone(),
-                        VcxExecutableInformation {
-                            configuration: c.clone(),
-                            executable_path: full_path.to_owned(),
-                            debugging_configuration: None,
-                        },
-                    ))
-                } else {
-                    Err(LookupError::ParseError(
-                        "Could not find executable path".to_owned(),
-                    ))
-                }
+            );
+            // TODO: fix handling of win path from linux
+            if let Some(full_path) = std::path::Path::new(e_dir)
+                .join(e_name)
+                .join(e_ext)
+                .to_str()
+            {
+                Ok((
+                    c.clone(),
+                    VcxExecutableInformation {
+                        configuration: c.clone(),
+                        executable_path: full_path.to_owned(),
+                        debugging_configuration: None,
+                    },
+                ))
             } else {
                 Err(LookupError::ParseError(
                     "Could not find executable path".to_owned(),
@@ -224,7 +219,7 @@ pub fn extract_executable_information_per_config_from_vcxproj<
             let vcxproj_user_path = parent_dir.join(vcxuser_filename);
             if vcxproj_user_path.exists() {
                 if let Ok(debugging_configuration_per_config) =
-                extract_debugging_configuration_per_config_from_vcxproj_user(&vcxproj_user_path)
+                    extract_debugging_configuration_per_config_from_vcxproj_user(&vcxproj_user_path)
                 {
                     for (c, dc) in debugging_configuration_per_config {
                         if let Some(outdir) = executable_info_per_config.get_mut(&c) {

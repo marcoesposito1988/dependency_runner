@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 
 use crate::common::Query;
-use crate::system::{find_file_in_folder_case_insensitive, WinFileSystemCache};
+use crate::system::WinFileSystemCache;
 #[cfg(windows)]
 use crate::system::{get_system_directory, get_windows_directory};
 use crate::LookupError;

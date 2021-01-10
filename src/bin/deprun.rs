@@ -1,12 +1,12 @@
 extern crate dependency_runner;
 
 use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
-use dependency_runner::{lookup, Executable, Executables, Query};
+use dependency_runner::{lookup, Executable, Query};
 
 use anyhow::Context;
 
 use clap::{App, Arg};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() -> anyhow::Result<()> {
     let args = App::new("dependency_runner")
