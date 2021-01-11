@@ -238,7 +238,7 @@ fn main() -> anyhow::Result<()> {
     let exe_tree = LookupResultTreeView::new(&executables);
     exe_tree.visit_depth_first(|n: &LookupResultTreeNode| {
         if let Some(lr) = executables.get(n.name.as_ref()) {
-            if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(true) && !print_system_dlls) {
+            if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls) {
                 let folder = if !lr.found {
                     "not found".to_owned()
                 } else {

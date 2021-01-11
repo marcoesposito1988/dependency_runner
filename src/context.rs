@@ -4,8 +4,6 @@ use std::path::{Path, PathBuf};
 use crate::common::Query;
 use crate::context::ContextEntryType::{ExecutableDir, KnownDLLs, SystemDir, UserPath, WindowsDir};
 use crate::system::WinFileSystemCache;
-#[cfg(windows)]
-use crate::system::{get_system_directory, get_windows_directory};
 use crate::LookupError;
 
 #[derive(Eq, PartialEq, Debug, Clone)]

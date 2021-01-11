@@ -84,7 +84,7 @@ fn main() -> anyhow::Result<()> {
     let prefix = " ".repeat(8); // as ldd
 
     for e in sorted_executables {
-        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(true) && hide_system_dlls) {
+        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && hide_system_dlls) {
             if e.found {
                 println!(
                     "{}{} => {}",

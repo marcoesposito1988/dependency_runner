@@ -149,8 +149,13 @@ impl Query {
                 + exe_path.to_str().unwrap_or(""),
         ))?;
 
+        #[cfg(windows)]
+        let system = WindowsSystem::current()?;
+        #[cfg(not(windows))]
+        let system = WindowsSystem::from_exe_location(&exe_path)?;
+
         let mut ret = Self {
-            system: WindowsSystem::from_exe_location(&exe_path)?,
+            system,
             target_exe: exe_path.to_owned(),
             app_dir: app_dir.to_owned(),
             working_dir: app_dir.to_owned(),
