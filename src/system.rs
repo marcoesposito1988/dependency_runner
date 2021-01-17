@@ -23,6 +23,7 @@ pub fn decanonicalize(s: &str) -> String {
 // if running from within Win: we extract system directory paths from Win32 APIs, and read the
 // PATH env var (the user can override everything later if necessary)
 // if running in another OS: we can only guess the directories, and can't do anything about the PATH
+#[derive(Clone)]
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
     pub known_dlls: Option<Vec<PathBuf>>,
@@ -41,8 +42,12 @@ impl WindowsSystem {
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
         let path_str = std::env::var("PATH");
         let path = path_str
-            .and_then(|s| Ok(s.split(";").filter_map(|subs|std::fs::canonicalize(subs).ok()
-            ).collect())).ok();
+            .and_then(|s| {
+                Ok(s.split(";")
+                    .filter_map(|subs| std::fs::canonicalize(subs).ok())
+                    .collect())
+            })
+            .ok();
         Ok(Self {
             safe_dll_search_mode_on: None,
             known_dlls: None,

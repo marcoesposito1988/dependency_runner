@@ -11,7 +11,7 @@ mod workqueue; // TODO make private
 pub mod context;
 pub mod models;
 
-pub fn lookup(query: Query, context: Context) -> Result<Executables, LookupError> {
+pub fn lookup(query: &Query, context: Context) -> Result<Executables, LookupError> {
     let mut wq = workqueue::Workqueue::new(query, context);
     wq.run()
 }

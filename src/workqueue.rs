@@ -18,10 +18,10 @@ pub(crate) struct Workqueue {
 }
 
 impl Workqueue {
-    pub(crate) fn new(query: Query, context: Context) -> Self {
+    pub(crate) fn new(query: &Query, context: Context) -> Self {
         Self {
             context,
-            query,
+            query: query.clone(),
             executables_to_lookup: Vec::new(),
             executables_found: Executables::new(),
         }

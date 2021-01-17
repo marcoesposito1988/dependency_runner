@@ -6,7 +6,7 @@ use dependency_runner::{lookup, Executable, Query};
 
 use anyhow::Context;
 
-use clap::{App, Arg};
+use clap::{value_t, App, Arg};
 use std::path::PathBuf;
 
 fn main() -> anyhow::Result<()> {
@@ -26,6 +26,14 @@ fn main() -> anyhow::Result<()> {
                 .long("output-json-path")
                 .value_name("OUTPUT_JSON_PATH")
                 .help("Sets the path for the output JSON file")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("MAX_DEPTH")
+                .short("d")
+                .long("max-depth")
+                .value_name("MAX_DEPTH")
+                .help("Maximum recursion depth (default: unlimited)")
                 .takes_value(true),
         )
         .arg(
@@ -129,6 +137,10 @@ fn main() -> anyhow::Result<()> {
     let query = {
         let mut query = Query::deduce_from_executable_location(&binary_path)?;
 
+        if let Ok(max_depth) = value_t!(matches.value_of("MAX_DEPTH"), usize) {
+            query.max_depth = Some(max_depth);
+        }
+
         if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
             query.system.sys_dir = PathBuf::from(overridden_sysdir);
         } else {
@@ -205,7 +217,7 @@ fn main() -> anyhow::Result<()> {
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
     let context = dependency_runner::context::Context::new(&query);
-    let executables = lookup(query, context)?;
+    let executables = lookup(&query, context)?;
 
     let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
@@ -237,25 +249,29 @@ fn main() -> anyhow::Result<()> {
     //
     let exe_tree = LookupResultTreeView::new(&executables);
     exe_tree.visit_depth_first(|n: &LookupResultTreeNode| {
-        if let Some(lr) = executables.get(n.name.as_ref()) {
-            if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls) {
-                let folder = if !lr.found {
-                    "not found".to_owned()
-                } else {
-                    if let Some(details) = &lr.details {
-                        details
-                            .folder
-                            .to_str()
-                            .map(decanonicalize)
-                            .unwrap_or("INVALID".to_owned())
+        if query.max_depth.map(|d| n.depth < d).unwrap_or(true) {
+            if let Some(lr) = executables.get(n.name.as_ref()) {
+                if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(false)
+                    && !print_system_dlls)
+                {
+                    let folder = if !lr.found {
+                        "not found".to_owned()
                     } else {
-                        "not searched".to_owned()
-                    }
-                };
-                println!("{}{} => {}", "\t".repeat(n.depth), n.name, folder);
+                        if let Some(details) = &lr.details {
+                            details
+                                .folder
+                                .to_str()
+                                .map(decanonicalize)
+                                .unwrap_or("INVALID".to_owned())
+                        } else {
+                            "not searched".to_owned()
+                        }
+                    };
+                    println!("{}{} => {}", "\t".repeat(n.depth), n.name, folder);
+                }
+            } else {
+                println!("no data for executable {}", &n.name);
             }
-        } else {
-            println!("no data for executable {}", &n.name);
         }
     });
 

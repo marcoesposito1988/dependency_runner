@@ -40,6 +40,7 @@ pub enum LookupError {
     InternalError(#[from] anyhow::Error),
 }
 
+#[derive(Clone)]
 pub struct Query {
     pub system: WindowsSystem,
     pub target_exe: PathBuf,
