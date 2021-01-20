@@ -37,8 +37,13 @@ impl ExecutablesTreeView {
 
         let mut this_deps: Vec<String> = Vec::new();
 
-        if let Some(deps) = &lr.dependencies {
-            for dep in deps {
+        if let Some(dependencies) = &lr
+            .details
+            .as_ref()
+            .map(|det| &det.dependencies)
+            .unwrap_or(&None)
+        {
+            for dep in dependencies {
                 if let Some(dep_lr) = exes.get(&dep.to_lowercase()) {
                     self.add_to_arena(Some(lr.name.clone()), depth + 1, dep_lr, exes);
                     this_deps.push(dep.clone());

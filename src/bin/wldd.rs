@@ -31,11 +31,19 @@ fn main() -> anyhow::Result<()> {
             .short("v")
             .multiple(true)
             .help("Sets the level of verbosity"))
+        .arg(
+            Arg::with_name("HIDE_SYS_DLLS")
+                .long("hide-system-dlls")
+                .takes_value(false)
+                .help("Hide system DLLs in the output"),
+        )
         .get_matches();
 
     let verbose = matches.occurrences_of("v") > 0;
 
     let binary_path = matches.value_of("INPUT").unwrap();
+
+    let hide_system_dlls = matches.is_present("HIDE_SYS_DLLS");
 
     if !std::path::Path::new(binary_path).exists() {
         eprintln!("Specified file not found at {}", binary_path);
@@ -86,7 +94,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables = lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true);
+    let executables =
+        lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true)?;
 
     let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
@@ -96,13 +105,9 @@ fn main() -> anyhow::Result<()> {
     let prefix = " ".repeat(8); // as ldd
 
     for e in sorted_executables {
-        if !e.is_system.unwrap_or(false) {
-            if let Some(folder) = e.folder {
-                if let Some(full_path_str) = std::path::Path::new(&folder).join(&e.name).to_str() {
-                    println!("{}{} => {}", &prefix, &e.name, full_path_str);
-                } else {
-                    println!("{}{} => invalid path", &prefix, &e.name);
-                }
+        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(true) && hide_system_dlls) {
+            if e.found {
+                println!("{}{} => {}", &prefix, &e.name, e.full_path());
             } else {
                 println!("{}{} => not found", &prefix, &e.name);
             }

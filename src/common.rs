@@ -29,12 +29,28 @@ pub struct LookupQuery {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct Details {
+    pub is_system: bool,
+    pub folder: String,
+    pub dependencies: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct LookupResult {
     pub name: String,
     pub depth_first_appearance: usize,
-    pub is_system: Option<bool>,
-    pub folder: Option<String>,
-    pub dependencies: Option<Vec<String>>,
+    pub found: bool,
+    pub details: Option<Details>,
+}
+
+impl LookupResult {
+    pub fn full_path(&self) -> String {
+        if let Some(details) = &self.details {
+            details.folder.clone() + &self.name
+        } else {
+            self.name.clone()
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -30,17 +30,16 @@ impl Workqueue {
     }
 
     // the workers register the executable that was found for the given name; the function checks for uniqueness
-    pub(crate) fn register_finding(&mut self, found: LookupResult) {
-        if self.executables_found.contains(&found.name) {
-            if found.folder != self.executables_found.get(&found.name).unwrap().folder {
-                panic!(
-                    "Found two DLLs with the same name! {:?} and {:?}",
-                    found.folder,
-                    self.executables_found.get(&found.name).unwrap().folder
-                )
-            }
+    pub(crate) fn register_finding(&mut self, new_finding: LookupResult) {
+        if let Some(older_finding) = self.executables_found.get(&new_finding.name) {
+            eprintln!(
+                "Found two DLLs with the same name! {:?} and {:?}",
+                new_finding.full_path(),
+                older_finding.full_path()
+            );
         } else {
-            self.executables_found.insert(&found.name.clone(), found);
+            self.executables_found
+                .insert(&new_finding.name.clone(), new_finding);
         }
     }
 }

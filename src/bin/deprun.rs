@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
         .arg(
             Arg::with_name("OUTPUT_JSON_PATH")
                 .short("j")
-                .long("output_json_path")
+                .long("output-json-path")
                 .value_name("OUTPUT_JSON_PATH")
                 .help("Sets the path for the output JSON file")
                 .takes_value(true),
@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
         )
         .arg(
             Arg::with_name("PRINT_SYS_DLLS")
-                .long("print_system_dlls")
+                .long("print-system-dlls")
                 .takes_value(false)
                 .help("Include system DLLs in the output"),
         );
@@ -115,7 +115,7 @@ fn main() -> anyhow::Result<()> {
 
     let binary_path = matches.value_of("INPUT").unwrap();
 
-    let print_system_dlls = matches.is_present("With system DLLs");
+    let print_system_dlls = matches.is_present("PRINT_SYS_DLLS");
 
     if !std::path::Path::new(binary_path).exists() {
         eprintln!("Specified file not found at {}", binary_path);
@@ -191,7 +191,8 @@ fn main() -> anyhow::Result<()> {
     }
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables = lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true);
+    let executables =
+        lookup_executable_dependencies_recursive(&binary_filename, &context, 6, true)?;
 
     let mut sorted_executables: Vec<LookupResult> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
@@ -224,13 +225,17 @@ fn main() -> anyhow::Result<()> {
     let exe_tree = ExecutablesTreeView::new(&executables);
     exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
         if let Some(lr) = executables.get(&n.name) {
-            if !(lr.is_system.unwrap_or(true) && !print_system_dlls) {
-                println!(
-                    "{}{} => {}",
-                    "\t".repeat(n.depth),
-                    n.name,
-                    lr.folder.as_ref().unwrap_or(&"not found".to_owned())
-                );
+            if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(true) && !print_system_dlls) {
+                let folder = if !lr.found {
+                    "not found"
+                } else {
+                    if let Some(details) = &lr.details {
+                        &details.folder
+                    } else {
+                        "not searched"
+                    }
+                };
+                println!("{}{} => {}", "\t".repeat(n.depth), n.name, folder);
             }
         } else {
             println!("no data for executable {}", &n.name);

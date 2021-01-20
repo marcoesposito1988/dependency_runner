@@ -10,6 +10,8 @@ mod workqueue;
 
 pub mod context;
 pub mod models;
+
+use crate::common::Details;
 pub use crate::common::{Executables, LookupError, LookupQuery, LookupResult};
 pub use crate::context::LookupContext;
 
@@ -41,7 +43,7 @@ pub fn lookup_executable_dependencies_recursive(
     context: &LookupContext,
     max_depth: usize,
     skip_system_dlls: bool,
-) -> Executables {
+) -> Result<Executables, LookupError> {
     let mut workqueue = Workqueue::new();
     workqueue.enqueue(filename, 0);
 
@@ -53,55 +55,50 @@ pub fn lookup_executable_dependencies_recursive(
             if workqueue.executables_found.contains(&executable) {
                 continue;
             }
-            if let Ok(l) = path::search_file(&executable, &context) {
-                if let Some(fullpath) = l {
-                    let folder = Path::new(&fullpath).parent().unwrap().to_str().unwrap();
-                    let actual_name = Path::new(&fullpath).file_name().unwrap().to_str().unwrap();
-                    let is_system = context.is_system_dir(folder);
+            if let Some(fullpath) = path::search_file(&executable, &context).unwrap_or(None) {
+                let folder = Path::new(&fullpath).parent().unwrap().to_str().unwrap();
+                let actual_name = Path::new(&fullpath).file_name().unwrap().to_str().unwrap();
+                let is_system = context.is_system_dir(folder);
 
-                    if let Ok(dependencies) = lookup_executable_dependencies(&fullpath) {
-                        if !(skip_system_dlls && is_system) {
-                            for d in &dependencies {
-                                workqueue.enqueue(d, depth + 1);
-                            }
+                if let Ok(dependencies) = lookup_executable_dependencies(&fullpath) {
+                    if !(skip_system_dlls && is_system) {
+                        for d in &dependencies {
+                            workqueue.enqueue(d, depth + 1);
                         }
-
-                        workqueue.register_finding(LookupResult {
-                            name: actual_name.to_owned(),
-                            depth_first_appearance: depth,
-                            is_system: Some(is_system),
-                            folder: Some(folder.to_owned()),
-                            dependencies: Some(dependencies),
-                        });
-                    } else {
-                        workqueue.register_finding(LookupResult {
-                            name: executable.clone(),
-                            depth_first_appearance: depth,
-                            is_system: Some(is_system),
-                            folder: None,
-                            dependencies: None,
-                        });
                     }
+
+                    workqueue.register_finding(LookupResult {
+                        name: actual_name.to_owned(),
+                        depth_first_appearance: depth,
+                        found: true,
+                        details: Some(Details {
+                            is_system,
+                            folder: folder.to_owned(),
+                            dependencies: Some(dependencies),
+                        }),
+                    });
                 } else {
                     workqueue.register_finding(LookupResult {
                         name: executable.clone(),
                         depth_first_appearance: depth,
-                        is_system: None,
-                        folder: None,
-                        dependencies: None,
+                        found: true,
+                        details: Some(Details {
+                            is_system,
+                            folder: folder.to_owned(),
+                            dependencies: None,
+                        }),
                     });
                 }
             } else {
                 workqueue.register_finding(LookupResult {
                     name: executable.clone(),
                     depth_first_appearance: depth,
-                    is_system: None,
-                    folder: None,
-                    dependencies: None,
+                    found: false,
+                    details: None,
                 });
             }
         }
     }
 
-    workqueue.executables_found
+    Ok(workqueue.executables_found)
 }
