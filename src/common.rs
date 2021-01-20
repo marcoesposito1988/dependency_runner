@@ -16,6 +16,9 @@ pub enum LookupError {
 
     #[error("Lookup context building error")]
     ContextDeductionError(String),
+
+    #[error(transparent)]
+    RegexError(#[from] regex::Error),
     #[error(transparent)]
     IOError(#[from] std::io::Error),
     #[error(transparent)]

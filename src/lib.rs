@@ -6,7 +6,8 @@ use std::path::Path;
 
 mod common;
 mod path;
-mod workqueue;
+pub mod vcxproj;
+mod workqueue; // TODO make private
 
 pub mod context;
 pub mod models;

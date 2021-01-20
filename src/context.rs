@@ -3,6 +3,7 @@ use crate::path::{get_system_directory, get_windows_directory};
 
 use crate::LookupError;
 
+use std::collections::HashMap;
 use std::ffi::OsString;
 #[cfg(not(windows))]
 use std::path::Path;
