@@ -3,8 +3,12 @@ use std::collections::HashMap;
 use crate::LookupError;
 use std::path::PathBuf;
 
-// Visual Studio
+// Parsing of Visual Studio files
 
+/// Debugging configurations
+///
+/// Extracted from a .vcxproj.user file
+/// Grouped by configuration (e.g. Debug, Release, ...)
 #[derive(Debug)]
 pub struct VcxDebuggingConfiguration {
     pub configuration: String,
@@ -121,6 +125,11 @@ pub fn extract_debugging_configuration_per_config_from_vcxproj_user<
     Ok(debugging_config_per_config)
 }
 
+/// Executable Information
+///
+/// Extracted from a .vcxproj file
+/// Grouped by configuration (e.g. Debug, Release, ...)
+/// Contains VcxDebuggingConfiguration extracted from respective .vcxproj.user, if present
 #[derive(Debug)]
 pub struct VcxExecutableInformation {
     pub configuration: String,
@@ -192,8 +201,7 @@ pub fn extract_executable_information_per_config_from_vcxproj<
             );
             // TODO: fix handling of win path from linux
             if let Some(full_path) = std::path::Path::new(e_dir)
-                .join(e_name)
-                .join(e_ext)
+                .join(e_name.to_owned() + e_ext)
                 .to_str()
             {
                 Ok((

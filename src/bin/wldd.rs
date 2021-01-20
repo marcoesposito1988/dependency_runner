@@ -75,7 +75,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let context = Context::new(&query);
-    let executables = lookup(query, context)?;
+    let executables = lookup(&query, context)?;
 
     // printing in depth order
     let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();

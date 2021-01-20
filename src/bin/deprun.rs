@@ -2,12 +2,49 @@ extern crate dependency_runner;
 
 use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
 use dependency_runner::system::decanonicalize;
+#[cfg(windows)]
+use dependency_runner::LookupError;
 use dependency_runner::{lookup, Executable, Query};
 
 use anyhow::Context;
 
 use clap::{value_t, App, Arg};
+#[cfg(windows)]
+use dependency_runner::vcx::{
+    extract_debugging_configuration_per_config_from_vcxproj_user,
+    extract_executable_information_per_config_from_vcxproj,
+};
 use std::path::PathBuf;
+
+#[cfg(windows)]
+fn pick_configuration(
+    configs: &Vec<&String>,
+    user_config: &Option<&str>,
+    file_path: &str,
+) -> Result<String, LookupError> {
+    if let Some(vcx_config) = user_config {
+        if configs.contains(&&vcx_config.to_string()) {
+            Ok(vcx_config.to_owned().to_string())
+        } else {
+            return Err(LookupError::ContextDeductionError(format!(
+                "The specified configuration {} was not found in project file {}\nAvailable configurations: {:?}",
+                vcx_config, file_path,
+                configs)));
+        }
+    } else {
+        if configs.len() == 1 {
+            let single_config = configs.last().unwrap();
+            eprintln!(
+                "Visual Studio configuration not specified, using {} for file {}",
+                single_config, file_path
+            );
+            Ok(single_config.to_owned().to_string())
+        } else {
+            return Err(LookupError::ContextDeductionError(format!("Must specify a configuration with vcx-config for project file {}\nAvailable configurations: {:?}",
+                                                                  file_path, configs)));
+        }
+    }
+}
 
 fn main() -> anyhow::Result<()> {
     let args = App::new("dependency_runner")
@@ -52,46 +89,69 @@ fn main() -> anyhow::Result<()> {
 
     let args = {
         #[cfg(windows)]
-        {
-            args.arg(
-                Arg::with_name("SYSDIR")
-                    .short("s")
-                    .long("sysdir")
-                    .value_name("SYSDIR")
-                    .help("Specify a Windows System32 directory other than C:\\Windows\\System32")
-                    .takes_value(true),
-            )
-            .arg(
-                Arg::with_name("WINDIR")
-                    .short("w")
-                    .long("windir")
-                    .value_name("WINDIR")
-                    .help("Specify a Windows directory other than C:\\Windows")
-                    .takes_value(true),
-            )
-            .arg(
-                Arg::with_name("WORKDIR")
-                    .short("k")
-                    .long("workdir")
-                    .value_name("WORKDIR")
-                    .help(
-                        "Specify a current working directory other than that of the current shell",
+            {
+                args.arg(
+                    Arg::with_name("SYSDIR")
+                        .short("s")
+                        .long("sysdir")
+                        .value_name("SYSDIR")
+                        .help("Specify a Windows System32 directory other than C:\\Windows\\System32")
+                        .takes_value(true),
+                )
+                    .arg(
+                        Arg::with_name("WINDIR")
+                            .short("w")
+                            .long("windir")
+                            .value_name("WINDIR")
+                            .help("Specify a Windows directory other than C:\\Windows")
+                            .takes_value(true),
                     )
-                    .takes_value(true),
-            )
-            .arg(
-                Arg::with_name("PATH")
-                    .short("a")
-                    .long("userpath")
-                    .value_name("PATH")
-                    .help("Specify a user path different from that of the current shell")
-                    .takes_value(true),
-            )
-        }
+                    .arg(
+                        Arg::with_name("WORKDIR")
+                            .short("k")
+                            .long("workdir")
+                            .value_name("WORKDIR")
+                            .help(
+                                "Specify a current working directory other than that of the current shell",
+                            )
+                            .takes_value(true),
+                    )
+                    .arg(
+                        Arg::with_name("PATH")
+                            .short("a")
+                            .long("userpath")
+                            .value_name("PATH")
+                            .help("Specify a user path different from that of the current shell")
+                            .takes_value(true),
+                    )
+                    .arg(
+                        Arg::with_name("DWP_FILE_PATH")
+                            .long("dwp-file-path")
+                            .value_name("DWP_FILE_PATH")
+                            .help("Read the search path from a .dwp file (Dependency Walker's format)")
+                            .takes_value(true),
+                    )
+                    .arg(
+                        Arg::with_name("VCXPROJ_USER_PATH")
+                            .long("vcxuser-path")
+                            .value_name("VCXPROJ_USER_PATH")
+                            .help("Path to a .vcxproj.user file to parse for PATH entries to be added to the search path")
+                            .takes_value(true)
+                            .conflicts_with("DWP_FILE_PATH"),
+                    )
+                    .arg(
+                        Arg::with_name("VCXPROJ_CONFIGURATION")
+                            .long("vcx-config")
+                            .value_name("VCXPROJ_CONFIGURATION")
+                            .help("Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or a .vcxproj.user was provided")
+                            .takes_value(true)
+                            .conflicts_with("DWP_FILE_PATH"),
+                    )
+            }
 
         #[cfg(not(windows))]
-        {
-            args
+            {
+                args
                     .arg(Arg::with_name("SYSDIR")
                         .short("s")
                         .long("sysdir")
@@ -118,7 +178,7 @@ fn main() -> anyhow::Result<()> {
                             .help("Specify a user path")
                             .takes_value(true),
                     )
-        }
+            }
     };
 
     let matches = args.get_matches();
@@ -134,52 +194,96 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    let query = {
+    #[cfg(not(windows))]
         let mut query = Query::deduce_from_executable_location(&binary_path)?;
 
-        if let Ok(max_depth) = value_t!(matches.value_of("MAX_DEPTH"), usize) {
-            query.max_depth = Some(max_depth);
-        }
+    #[cfg(windows)]
+        let mut query = if binary_path.extension().map(|e| e == "vcxproj").unwrap_or(false) {
+        let vcxproj_path = &binary_path;
+        let vcx_exe_info_per_config =
+            extract_executable_information_per_config_from_vcxproj(&vcxproj_path)?;
+        let vcx_config_to_use = pick_configuration(
+            &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
+            &matches.value_of("VCXPROJ_CONFIGURATION"),
+            vcxproj_path.to_str().ok_or(LookupError::ContextDeductionError(
+                format!("Could not open {:?} as a .vcxproj file", vcxproj_path)))?,
+        )?;
+        let vcx_exe_info = &vcx_exe_info_per_config[&vcx_config_to_use];
 
-        if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
-            query.system.sys_dir = PathBuf::from(overridden_sysdir);
-        } else {
-            if verbose {
-                println!(
-                    "System32 directory not specified, assumed {}",
-                    decanonicalize(query.system.sys_dir.to_str().unwrap_or("---"))
-                );
-            }
+        Query::read_from_vcx_executable_information(vcx_exe_info)?
+    } else {
+        let mut query = Query::deduce_from_executable_location(&binary_path)?;
+
+        if let Some(vcxproj_user_path) = matches.value_of("VCXPROJ_USER_PATH") {
+            let vcx_debug_info_per_config =
+                extract_debugging_configuration_per_config_from_vcxproj_user(&vcxproj_user_path)?;
+            let config_to_use = pick_configuration(
+                &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
+                &matches.value_of("VCXPROJ_CONFIGURATION"),
+                vcxproj_user_path,
+            )?;
+            let vcx_debug_info = &vcx_debug_info_per_config[&config_to_use];
+
+            query.update_from_vcx_debugging_configuration(vcx_debug_info);
         }
-        if let Some(overridden_windir) = matches.value_of("WINDIR") {
-            query.system.win_dir = PathBuf::from(overridden_windir);
-        } else {
-            if verbose {
-                println!(
-                    "Windows directory not specified, assumed {}",
-                    decanonicalize(query.system.win_dir.to_str().unwrap_or("---"))
-                );
-            }
+        query
+    };
+
+    if let Ok(max_depth) = value_t!(matches.value_of("MAX_DEPTH"), usize) {
+        query.max_depth = Some(max_depth);
+    }
+
+    #[cfg(not(windows))]
+        let context = dependency_runner::context::Context::new(&query);
+
+    #[cfg(windows)]
+        let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
+        dependency_runner::context::Context::from_dwp_file(dwp_file_path, &query)?
+    } else {
+        dependency_runner::context::Context::new(&query)
+    };
+
+    // overrides (must be last)
+
+    if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
+        query.system.sys_dir = PathBuf::from(overridden_sysdir);
+    } else {
+        if verbose {
+            println!(
+                "System32 directory not specified, assumed {}",
+                decanonicalize(query.system.sys_dir.to_str().unwrap_or("---"))
+            );
         }
-        if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
-            query.working_dir = PathBuf::from(overridden_workdir);
-        } else {
-            if verbose {
-                println!(
-                    "Working directory not specified, assuming directory of executable: {}",
-                    decanonicalize(query.working_dir.to_str().unwrap_or("---"))
-                );
-            }
+    }
+    if let Some(overridden_windir) = matches.value_of("WINDIR") {
+        query.system.win_dir = PathBuf::from(overridden_windir);
+    } else {
+        if verbose {
+            println!(
+                "Windows directory not specified, assumed {}",
+                decanonicalize(query.system.win_dir.to_str().unwrap_or("---"))
+            );
         }
-        if let Some(overridden_path) = matches.value_of("PATH") {
-            let canonicalized_path: Vec<PathBuf> = overridden_path
-                .split(";")
-                .map(|s| std::fs::canonicalize(s))
-                .collect::<Result<Vec<_>, std::io::Error>>()?;
-            query.system.path = Some(canonicalized_path);
-        } else {
-            if verbose {
-                #[cfg(windows)]
+    }
+    if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
+        query.working_dir = PathBuf::from(overridden_workdir);
+    } else {
+        if verbose {
+            println!(
+                "Working directory not specified, assuming directory of executable: {}",
+                decanonicalize(query.working_dir.to_str().unwrap_or("---"))
+            );
+        }
+    }
+    if let Some(overridden_path) = matches.value_of("PATH") {
+        let canonicalized_path: Vec<PathBuf> = overridden_path
+            .split(";")
+            .map(|s| std::fs::canonicalize(s))
+            .collect::<Result<Vec<_>, std::io::Error>>()?;
+        query.system.path = Some(canonicalized_path);
+    } else {
+        if verbose {
+            #[cfg(windows)]
                 {
                     let decanonicalized_path: Vec<String> = query
                         .system
@@ -194,11 +298,9 @@ fn main() -> anyhow::Result<()> {
                         decanonicalized_path.join(", ")
                     );
                 }
-                #[cfg(not(windows))]
-                println!("User path not specified, assumed: {:?}", query.system.path);
-            }
+            #[cfg(not(windows))]
+            println!("User path not specified, assumed: {:?}", query.system.path);
         }
-        query
     };
 
     if verbose {
@@ -215,12 +317,14 @@ fn main() -> anyhow::Result<()> {
         println!("Search path: {}\n", decanonicalized_path.join(", "));
     }
 
-    // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let context = dependency_runner::context::Context::new(&query);
     let executables = lookup(&query, context)?;
 
-    let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
-    sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
+    let sorted_executables = {
+        let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
+        sorted_executables
+            .sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
+        sorted_executables
+    };
 
     // printing in depth order // TODO: arg to choose output format
     //
@@ -258,11 +362,8 @@ fn main() -> anyhow::Result<()> {
                         "not found".to_owned()
                     } else {
                         if let Some(details) = &lr.details {
-                            details
-                                .folder
-                                .to_str()
-                                .map(decanonicalize)
-                                .unwrap_or("INVALID".to_owned())
+                                decanonicalize(std::fs::canonicalize(&details.folder)
+                                    .unwrap_or("INVALID".into()).to_str().unwrap_or("INVALID".into()))
                         } else {
                             "not searched".to_owned()
                         }
