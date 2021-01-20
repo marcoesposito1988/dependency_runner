@@ -18,9 +18,9 @@ pub(crate) struct Workqueue {
 }
 
 impl Workqueue {
-    pub(crate) fn new(query: Query) -> Self {
+    pub(crate) fn new(query: Query, context: Context) -> Self {
         Self {
-            context: Context::new(&query),
+            context,
             query,
             executables_to_lookup: Vec::new(),
             executables_found: Executables::new(),

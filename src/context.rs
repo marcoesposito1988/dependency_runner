@@ -1,7 +1,8 @@
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::common::Query;
+use crate::context::ContextEntryType::{ExecutableDir, KnownDLLs, SystemDir, UserPath, WindowsDir};
 use crate::system::WinFileSystemCache;
 #[cfg(windows)]
 use crate::system::{get_system_directory, get_windows_directory};
@@ -9,6 +10,7 @@ use crate::LookupError;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum ContextEntryType {
+    KnownDLLs,
     ExecutableDir,
     SystemDir,
     // SystemDir16, // ignored
@@ -46,18 +48,6 @@ pub struct Context {
 
 impl Context {
     pub fn new(query: &Query) -> Self {
-        let user_path_entries = query
-            .system
-            .path
-            .as_ref()
-            .unwrap_or(&Vec::new())
-            .iter()
-            .map(|s| ContextEntry {
-                dir_type: ContextEntryType::UserPath,
-                path: s.clone(),
-            })
-            .collect::<Vec<_>>();
-
         let entries = if query.system.safe_dll_search_mode_on.unwrap_or(true) {
             // default mode (assume if not specified)
             let system_entries = vec![
@@ -86,7 +76,7 @@ impl Context {
                 },
             ];
 
-            [system_entries, user_path_entries].concat()
+            [system_entries, Self::system_path_entries(&query)].concat()
         } else {
             // if HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode is 0
             let system_entries = vec![
@@ -115,13 +105,80 @@ impl Context {
                 },
             ];
 
-            [system_entries, user_path_entries].concat()
+            [system_entries, Self::system_path_entries(&query)].concat()
         };
 
         Self {
             entries,
             fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
         }
+    }
+
+    fn system_path_entries(q: &Query) -> Vec<ContextEntry> {
+        q.system
+            .path
+            .as_ref()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .map(|s| ContextEntry {
+                dir_type: ContextEntryType::UserPath,
+                path: s.clone(),
+            })
+            .collect::<Vec<_>>()
+    }
+
+    fn dwp_string_to_context_entry(s: &str, q: &Query) -> Result<Vec<ContextEntry>, LookupError> {
+        match s {
+            "SxS" => Ok(vec![]), // TODO?
+            "KnownDLLs" => Ok(vec![ContextEntry {
+                dir_type: KnownDLLs,
+                path: PathBuf::new(),
+            }]),
+            "AppDir" => Ok(vec![ContextEntry {
+                dir_type: ExecutableDir,
+                path: q.app_dir.clone(),
+            }]),
+            "32BitSysDir" => Ok(vec![ContextEntry {
+                dir_type: SystemDir,
+                path: q.system.sys_dir.clone(),
+            }]),
+            "16BitSysDir" => Ok(vec![]), // ignored
+            "OSDir" => Ok(vec![ContextEntry {
+                dir_type: WindowsDir,
+                path: q.system.win_dir.clone(),
+            }]),
+            "AppPath" => Ok(vec![]), // TODO? https://docs.microsoft.com/en-us/windows/win32/shell/app-registration
+            "SysPath" => Ok(vec![ContextEntry {
+                dir_type: UserPath,
+                path: q.system.win_dir.clone(),
+            }]),
+            _ if s.starts_with("UserDir ") => Ok(vec![ContextEntry {
+                dir_type: UserPath,
+                path: PathBuf::from(&s[8..]),
+            }]),
+            _ => Err(LookupError::ParseError(format!(
+                "Unknown key in dwp file: {}",
+                s
+            ))),
+        }
+    }
+
+    pub fn from_dwp_file<P: AsRef<Path>>(dwp_path: P, q: &Query) -> Result<Self, LookupError> {
+        // https://www.dependencywalker.com/help/html/path_files.htm
+        let comment_chars = [':', ';', '/', '\'', '#'];
+        let lines: Vec<String> = std::fs::read_to_string(dwp_path)?
+            .lines()
+            .filter(|s| !(s.is_empty() || comment_chars.contains(&s.chars().nth(0).unwrap())))
+            .map(str::to_owned)
+            .collect();
+        let entries_vecs = lines
+            .iter()
+            .map(|e| Self::dwp_string_to_context_entry(e, q))
+            .collect::<Result<Vec<Vec<ContextEntry>>, LookupError>>()?;
+        Ok(Self {
+            entries: entries_vecs.concat(),
+            fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
+        })
     }
 
     // linearize the lookup context into a single vector of directories

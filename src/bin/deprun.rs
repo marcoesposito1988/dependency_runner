@@ -1,8 +1,8 @@
 extern crate dependency_runner;
 
 use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
-use dependency_runner::{lookup, Executable, Query, LookupError};
 use dependency_runner::system::decanonicalize;
+use dependency_runner::{lookup, Executable, Query};
 
 use anyhow::Context;
 
@@ -44,46 +44,46 @@ fn main() -> anyhow::Result<()> {
 
     let args = {
         #[cfg(windows)]
-            {
-                args.arg(
-                    Arg::with_name("SYSDIR")
-                        .short("s")
-                        .long("sysdir")
-                        .value_name("SYSDIR")
-                        .help("Specify a Windows System32 directory other than C:\\Windows\\System32")
-                        .takes_value(true),
-                )
-                    .arg(
-                        Arg::with_name("WINDIR")
-                            .short("w")
-                            .long("windir")
-                            .value_name("WINDIR")
-                            .help("Specify a Windows directory other than C:\\Windows")
-                            .takes_value(true),
+        {
+            args.arg(
+                Arg::with_name("SYSDIR")
+                    .short("s")
+                    .long("sysdir")
+                    .value_name("SYSDIR")
+                    .help("Specify a Windows System32 directory other than C:\\Windows\\System32")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("WINDIR")
+                    .short("w")
+                    .long("windir")
+                    .value_name("WINDIR")
+                    .help("Specify a Windows directory other than C:\\Windows")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("WORKDIR")
+                    .short("k")
+                    .long("workdir")
+                    .value_name("WORKDIR")
+                    .help(
+                        "Specify a current working directory other than that of the current shell",
                     )
-                    .arg(
-                        Arg::with_name("WORKDIR")
-                            .short("k")
-                            .long("workdir")
-                            .value_name("WORKDIR")
-                            .help(
-                                "Specify a current working directory other than that of the current shell",
-                            )
-                            .takes_value(true),
-                    )
-                    .arg(
-                        Arg::with_name("PATH")
-                            .short("a")
-                            .long("userpath")
-                            .value_name("PATH")
-                            .help("Specify a user path different from that of the current shell")
-                            .takes_value(true),
-                    )
-            }
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("PATH")
+                    .short("a")
+                    .long("userpath")
+                    .value_name("PATH")
+                    .help("Specify a user path different from that of the current shell")
+                    .takes_value(true),
+            )
+        }
 
         #[cfg(not(windows))]
-            {
-                args
+        {
+            args
                     .arg(Arg::with_name("SYSDIR")
                         .short("s")
                         .long("sysdir")
@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
                             .help("Specify a user path")
                             .takes_value(true),
                     )
-            }
+        }
     };
 
     let matches = args.get_matches();
@@ -160,20 +160,28 @@ fn main() -> anyhow::Result<()> {
             }
         }
         if let Some(overridden_path) = matches.value_of("PATH") {
-            let canonicalized_path: Vec<PathBuf> =
-                overridden_path
-                    .split(";")
-                    .map(|s| std::fs::canonicalize(s))
-                    .collect::<Result<Vec<_>, std::io::Error>>()?;
+            let canonicalized_path: Vec<PathBuf> = overridden_path
+                .split(";")
+                .map(|s| std::fs::canonicalize(s))
+                .collect::<Result<Vec<_>, std::io::Error>>()?;
             query.system.path = Some(canonicalized_path);
         } else {
             if verbose {
-                let decanonicalized_path: Vec<String> = query.system.path.as_ref().unwrap_or(&Vec::new()).iter().map(|p| decanonicalize(p.to_str().unwrap())).collect();
                 #[cfg(windows)]
-                println!(
-                    "User path not specified, taken that of current shell: {}",
-                    decanonicalized_path.join(", ")
-                );
+                {
+                    let decanonicalized_path: Vec<String> = query
+                        .system
+                        .path
+                        .as_ref()
+                        .unwrap_or(&Vec::new())
+                        .iter()
+                        .map(|p| decanonicalize(p.to_str().unwrap()))
+                        .collect();
+                    println!(
+                        "User path not specified, taken that of current shell: {}",
+                        decanonicalized_path.join(", ")
+                    );
+                }
                 #[cfg(not(windows))]
                 println!("User path not specified, assumed: {:?}", query.system.path);
             }
@@ -182,15 +190,22 @@ fn main() -> anyhow::Result<()> {
     };
 
     if verbose {
-        println!("Looking for dependencies of binary {}\n", decanonicalize(&binary_path.to_str().unwrap()));
+        println!(
+            "Looking for dependencies of binary {}\n",
+            decanonicalize(&binary_path.to_str().unwrap())
+        );
         let ctx = dependency_runner::Context::new(&query);
-        let decanonicalized_path: Vec<String> = ctx.search_path().iter()
-            .map(|p| decanonicalize(p.to_str().unwrap())).collect();
+        let decanonicalized_path: Vec<String> = ctx
+            .search_path()
+            .iter()
+            .map(|p| decanonicalize(p.to_str().unwrap()))
+            .collect();
         println!("Search path: {}\n", decanonicalized_path.join(", "));
     }
 
     // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
-    let executables = lookup(query)?;
+    let context = dependency_runner::context::Context::new(&query);
+    let executables = lookup(query, context)?;
 
     let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
@@ -228,7 +243,11 @@ fn main() -> anyhow::Result<()> {
                     "not found".to_owned()
                 } else {
                     if let Some(details) = &lr.details {
-                        details.folder.to_str().map(decanonicalize).unwrap_or("INVALID".to_owned())
+                        details
+                            .folder
+                            .to_str()
+                            .map(decanonicalize)
+                            .unwrap_or("INVALID".to_owned())
                     } else {
                         "not searched".to_owned()
                     }

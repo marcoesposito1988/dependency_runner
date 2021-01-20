@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use crate::LookupError;
+use std::path::PathBuf;
 
 // Visual Studio
 
 #[derive(Debug)]
 pub struct VcxDebuggingConfiguration {
-    configuration: String,
-    path: Option<Vec<String>>,
-    working_directory: Option<String>,
+    pub configuration: String,
+    pub path: Option<Vec<PathBuf>>,
+    pub working_directory: Option<PathBuf>,
 }
 
 fn extract_config_from_node(n: &roxmltree::Node) -> Result<String, LookupError> {
@@ -64,9 +65,9 @@ fn extract_debugging_configuration_from_config_node(
                     "Failed to find LocalDebuggerEnvironment tag".to_owned(),
                 ))?;
         let path_entries = path_env_var_without_varname.split(";");
-        let path_entries_no_vars: Vec<String> = path_entries
+        let path_entries_no_vars: Vec<PathBuf> = path_entries
             .filter(|s| !s.contains("$") && !s.is_empty())
-            .map(|s| s.to_owned())
+            .map(|s| PathBuf::from(s))
             .collect();
         ret.path = Some(path_entries_no_vars);
     }
@@ -83,7 +84,7 @@ fn extract_debugging_configuration_from_config_node(
                 ))?;
         // TODO fetch properties from vcxproj? may get out of hand
         if !working_directory_text.starts_with("$") {
-            ret.working_directory = Some(working_directory_text.to_owned());
+            ret.working_directory = Some(PathBuf::from(working_directory_text));
         }
     }
 
@@ -122,9 +123,9 @@ pub fn extract_debugging_configuration_per_config_from_vcxproj_user<
 
 #[derive(Debug)]
 pub struct VcxExecutableInformation {
-    configuration: String,
-    executable_path: String,
-    debugging_configuration: Option<VcxDebuggingConfiguration>,
+    pub configuration: String,
+    pub executable_path: String,
+    pub debugging_configuration: Option<VcxDebuggingConfiguration>,
 }
 
 pub fn extract_executable_information_per_config_from_vcxproj<
@@ -232,33 +233,4 @@ pub fn extract_executable_information_per_config_from_vcxproj<
     }
 
     Ok(executable_info_per_config)
-}
-
-// DependencyWalker
-
-// parses the user path from a DependencyWalker dwp file
-fn parse_dependency_walker_dwp_file(p: &str) -> Result<Vec<String>, LookupError> {
-    // TODO: also parse other lines (should be quite a corner case, but you never know):
-    // SxS
-    // KnownDLLs
-    // AppDir
-    // 32BitSysDir
-    // 16BitSysDir
-    // OSDir
-    // AppPath
-    // SysPath
-
-    let filecontent = std::fs::read_to_string(p)?;
-    let lines = filecontent.lines();
-    let user_path_lines: Vec<String> = lines
-        .filter_map(|l| {
-            if l.starts_with("UserDir") {
-                Some(l.replace("UserDir ", ""))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(user_path_lines)
 }

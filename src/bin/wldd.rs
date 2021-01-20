@@ -2,8 +2,8 @@ extern crate dependency_runner;
 
 use clap::{App, Arg};
 
-use dependency_runner::{lookup, Executable, Query};
 use dependency_runner::system::decanonicalize;
+use dependency_runner::{lookup, Context, Executable, Query};
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")
@@ -74,7 +74,8 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let executables = lookup(query)?;
+    let context = Context::new(&query);
+    let executables = lookup(query, context)?;
 
     // printing in depth order
     let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
@@ -90,7 +91,7 @@ fn main() -> anyhow::Result<()> {
                     &prefix,
                     e.name.to_str().unwrap_or("---"),
                     e.full_path()
-                        .and_then(|p| { p.to_str().map(|f|decanonicalize(f)) })
+                        .and_then(|p| { p.to_str().map(|f| decanonicalize(f)) })
                         .unwrap_or("INVALID PATH".to_owned())
                 );
             } else {

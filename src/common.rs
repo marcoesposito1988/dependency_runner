@@ -1,5 +1,9 @@
 use thiserror::Error;
 
+use crate::external::{
+    extract_debugging_configuration_per_config_from_vcxproj_user,
+    extract_executable_information_per_config_from_vcxproj, VcxDebuggingConfiguration,
+};
 use crate::system::WindowsSystem;
 use pelite::pe64::{Pe, PeFile};
 use serde::Serialize;
@@ -32,6 +36,8 @@ pub enum LookupError {
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     PEError(#[from] pelite::Error),
+    #[error(transparent)]
+    InternalError(#[from] anyhow::Error),
 }
 
 pub struct Query {
@@ -86,6 +92,77 @@ impl Query {
             max_depth: None,
             skip_system_dlls: true,
         })
+    }
+
+    fn update_from_vs_configuration(
+        &mut self,
+        debugging_configuration: &VcxDebuggingConfiguration,
+    ) {
+        if let Some(path) = &debugging_configuration.path {
+            self.system.path = Some(path.clone());
+        }
+        if let Some(working_dir) = &debugging_configuration.working_directory {
+            self.working_dir = working_dir.clone();
+        }
+    }
+
+    pub fn update_from_vcxproj_user<P: AsRef<Path>, Q: AsRef<String>>(
+        &mut self,
+        vcxproj_user_path: P,
+        configuration: Q,
+    ) -> Result<(), LookupError> {
+        let deb_info =
+            extract_debugging_configuration_per_config_from_vcxproj_user(&vcxproj_user_path)?;
+        let deb_info_for_config = deb_info.get(configuration.as_ref()).ok_or_else(|| {
+            LookupError::ParseError(
+                format!(
+                    "Could not find configuration {}, available configurations: {}",
+                    configuration.as_ref(),
+                    deb_info.keys().map(|s| &**s).collect::<Vec<_>>().join(", ")
+                )
+                .into(),
+            )
+        })?;
+        self.update_from_vs_configuration(&deb_info_for_config);
+        Ok(())
+    }
+
+    pub fn read_from_vcxproj<P: AsRef<Path>, Q: AsRef<String>>(
+        vcxproj_path: P,
+        configuration: Q,
+    ) -> Result<Self, LookupError> {
+        let exe_info = extract_executable_information_per_config_from_vcxproj(&vcxproj_path)?;
+        let exe_info_for_config = exe_info.get(configuration.as_ref()).ok_or_else(|| {
+            LookupError::ParseError(
+                format!(
+                    "Could not find configuration {}, available configurations: {}",
+                    configuration.as_ref(),
+                    exe_info.keys().map(|s| &**s).collect::<Vec<_>>().join(", ")
+                )
+                .into(),
+            )
+        })?;
+        let exe_path = std::fs::canonicalize(&exe_info_for_config.executable_path)?;
+
+        let app_dir = exe_path.parent().ok_or(LookupError::ContextDeductionError(
+            "Could not find application directory for given executable ".to_owned()
+                + exe_path.to_str().unwrap_or(""),
+        ))?;
+
+        let mut ret = Self {
+            system: WindowsSystem::from_exe_location(&exe_path)?,
+            target_exe: exe_path.to_owned(),
+            app_dir: app_dir.to_owned(),
+            working_dir: app_dir.to_owned(),
+            max_depth: None,
+            skip_system_dlls: true,
+        };
+
+        if let Some(debugging_config) = &exe_info_for_config.debugging_configuration {
+            ret.update_from_vs_configuration(debugging_config);
+        }
+
+        Ok(ret)
     }
 }
 
