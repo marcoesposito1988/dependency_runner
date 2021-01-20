@@ -4,8 +4,8 @@ pub use crate::common::{Executable, Executables, LookupError, Query};
 pub use crate::context::Context;
 
 mod common;
+pub mod external;
 mod system;
-pub mod vcxproj;
 mod workqueue; // TODO make private
 
 pub mod context;
