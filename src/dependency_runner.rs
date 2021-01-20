@@ -1,10 +1,15 @@
 #[cfg(windows)]
 extern crate winapi;
 
+extern crate pelite;
 extern crate serde;
 
+use pelite::pe64::{Pe, PeFile};
 use serde::Serialize;
+use std::path::Path;
 
+use std::collections::hash_map::Values;
+use std::collections::HashMap;
 use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
@@ -56,9 +61,6 @@ pub fn get_windows_directory() -> Result<String, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 
-use pelite::pe64::{Pe, PeFile};
-use std::path::Path;
-
 pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
     path: &P,
 ) -> Result<Vec<String>, Error> {
@@ -84,11 +86,11 @@ pub fn dlls_imported_by_executable<P: AsRef<Path> + ?Sized>(
 
 #[derive(Debug)]
 pub struct Context {
-    app_dir: String,
-    sys_dir: String,
-    win_dir: String,
-    app_wd: String,
-    env_path: Vec<String>,
+    pub app_dir: String,
+    pub sys_dir: String,
+    pub win_dir: String,
+    pub app_wd: String,
+    pub env_path: Vec<String>,
 }
 
 impl Context {
@@ -136,6 +138,56 @@ impl Context {
             app_wd,
             env_path,
         }
+    }
+
+    // deduces sensible default values
+    // working dir same as app dir, Windows and Windows/System32 in same partition as the exe
+    // look for those from the app dir upwards
+    // extra path same as current environment (TODO: read from the registry of the partition with hivex?)
+    pub fn deduce_from_executable_location(exe_path: &str) -> Result<Self, String> {
+        let exe_path = Path::new(exe_path).parent().ok_or("Exe not found")?;
+
+        let app_dir = exe_path.to_str().ok_or("Exe not found")?.to_string();
+        let app_wd = app_dir.clone();
+
+        let root_path_candidates: Vec<_> = exe_path
+            .ancestors()
+            .filter(|p| {
+                let mut pbuf = p.to_path_buf();
+                pbuf.push("Windows");
+                pbuf.push("System32");
+                pbuf.exists()
+            })
+            .collect();
+
+        // just take the first for now
+        let partition_root_pathbuf = root_path_candidates[0].to_path_buf();
+        let win_dir_pathbuf = partition_root_pathbuf.join("Windows");
+        let sys_dir_pathbuf = win_dir_pathbuf.join("System32");
+
+        let win_dir = win_dir_pathbuf
+            .to_str()
+            .ok_or("Windows folder not found")?
+            .to_string();
+        let sys_dir = sys_dir_pathbuf
+            .to_str()
+            .ok_or("System folder not found")?
+            .to_string();
+
+        let path_str = std::env::var_os("PATH")
+            .unwrap_or(OsString::from(""))
+            .to_str()
+            .ok_or("Could not read PATH")?
+            .to_string();
+        let env_path: Vec<String> = path_str.split(";").map(|s| s.to_string()).collect();
+
+        Ok(Self {
+            app_dir,
+            sys_dir,
+            win_dir,
+            app_wd,
+            env_path,
+        })
     }
 
     /*
@@ -210,25 +262,52 @@ pub struct LookupResult {
     pub(crate) dependencies: Option<Vec<String>>,
 }
 
-type Executables = std::collections::HashMap<String, LookupResult>;
+#[derive(Debug, Clone)]
+pub struct Executables {
+    index: std::collections::HashMap<String, LookupResult>,
+}
+
+impl Executables {
+    pub fn new() -> Self {
+        Self {
+            index: std::collections::HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, name: &str, lr: LookupResult) {
+        self.index.insert(name.to_lowercase(), lr);
+    }
+
+    pub fn get(&self, name: &str) -> Option<&LookupResult> {
+        self.index.get(&name.to_lowercase())
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.index.contains_key(&name.to_lowercase())
+    }
+
+    pub fn values(&self) -> Values<'_, String, LookupResult> {
+        self.index.values()
+    }
+}
 
 struct Workqueue {
     executables_to_lookup: Vec<LookupQuery>,
-    executables_found: Executables, // using filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
+    executables_found: Executables, // using lowercase filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
 }
 
 impl Workqueue {
     fn new() -> Self {
         Self {
             executables_to_lookup: Vec::new(),
-            executables_found: std::collections::HashMap::new(),
+            executables_found: Executables::new(),
         }
     }
 
     // the user enqueues an executable; the workers enqueue the dependencies of those that were found
     // (skip the dependencies that have already been found)
     fn enqueue(&mut self, executable_name: &str, depth: usize) {
-        if !self.executables_found.contains_key(executable_name) {
+        if !self.executables_found.contains(executable_name) {
             self.executables_to_lookup.push(LookupQuery {
                 name: executable_name.to_string(),
                 depth,
@@ -243,15 +322,16 @@ impl Workqueue {
 
     // the workers register the executable that was found for the given name; the function checks for uniqueness
     fn register_finding(&mut self, found: LookupResult) {
-        if self.executables_found.contains_key(&found.name) {
-            if found.folder != self.executables_found[&found.name].folder {
+        if self.executables_found.contains(&found.name) {
+            if found.folder != self.executables_found.get(&found.name).unwrap().folder {
                 panic!(
                     "Found two DLLs with the same name! {:?} and {:?}",
-                    found.folder, self.executables_found[&found.name].folder
+                    found.folder,
+                    self.executables_found.get(&found.name).unwrap().folder
                 )
             }
         } else {
-            self.executables_found.insert(found.name.clone(), found);
+            self.executables_found.insert(&found.name.clone(), found);
         }
     }
 }
@@ -288,19 +368,21 @@ pub fn lookup_executable_dependencies(
         if lookup_query.depth <= max_depth {
             let executable = lookup_query.name;
             let depth = lookup_query.depth;
+            // don't search again if we already found the executable
+            if workqueue.executables_found.contains(&executable) {
+                continue;
+            }
             if let Ok(l) = search_file(&executable, &context) {
                 if let Some(fullpath) = l {
                     let folder = Path::new(&fullpath).parent().unwrap().to_str().unwrap();
                     let actual_name = Path::new(&fullpath).file_name().unwrap().to_str().unwrap();
                     let is_system = context.is_system_dir(folder);
 
-                    if skip_system_dlls && is_system {
-                        continue;
-                    }
-
                     if let Ok(dependencies) = dlls_imported_by_executable(&fullpath) {
-                        for d in &dependencies {
-                            workqueue.enqueue(d, depth + 1);
+                        if !(skip_system_dlls && is_system) {
+                            for d in &dependencies {
+                                workqueue.enqueue(d, depth + 1);
+                            }
                         }
 
                         workqueue.register_finding(LookupResult {
@@ -339,6 +421,91 @@ pub fn lookup_executable_dependencies(
             }
         }
     }
+    println!("finished inspecting {}", filename);
 
     workqueue.executables_found
+}
+
+// tree view of nodes referencing LookupResults in an Executables
+// this is necessary for the QAbstractItemModel, because that requires that every node has a single parent
+// in our Executables DAG, a node can have multiple parents (and appear at multiple depths)
+// this class just provides a reified tree view of the DAG
+
+pub struct ExecutablesTreeNode {
+    pub name: String,
+    pub parent: Option<String>,
+    pub depth: usize,
+    pub dependencies: Vec<String>,
+}
+
+// ordered depth-first: root is first node
+pub struct ExecutablesTreeView {
+    pub arena: Vec<ExecutablesTreeNode>,
+    pub index: std::collections::HashMap<String, usize>,
+    pub executables: Executables,
+}
+
+impl ExecutablesTreeView {
+    fn add_to_arena(
+        &mut self,
+        parent: Option<String>,
+        depth: usize,
+        lr: &LookupResult,
+        exes: &Executables,
+    ) {
+        let this_index = self.arena.len();
+        self.arena.push(ExecutablesTreeNode {
+            name: lr.name.clone(),
+            depth,
+            parent,
+            dependencies: Vec::new(), // will fill this later in new()
+        });
+
+        let mut this_deps: Vec<String> = Vec::new();
+
+        if let Some(deps) = &lr.dependencies {
+            for dep in deps {
+                if let Some(dep_lr) = exes.get(&dep.to_lowercase()) {
+                    self.add_to_arena(Some(lr.name.clone()), depth + 1, dep_lr, exes);
+                    this_deps.push(dep.clone());
+                }
+            }
+        }
+
+        self.arena[this_index].dependencies = this_deps;
+        self.index.insert(lr.name.clone(), this_index);
+    }
+
+    pub fn new(exes: &Executables) -> Self {
+        let root_nodes: Vec<&LookupResult> = exes.values().filter(|le| le.depth == 0).collect();
+
+        if root_nodes.len() > 1 {
+            panic!("Found multiple root nodes in the Executables");
+            // TODO: list found root nodes, proper error handling
+        }
+
+        if root_nodes.len() == 0 {
+            panic!("No root node found in the Executables");
+            // TODO: list found root nodes, proper error handling
+        }
+
+        let root_node = root_nodes.first().unwrap();
+
+        let mut ret = Self {
+            arena: Vec::new(),
+            index: HashMap::new(),
+            executables: exes.clone(),
+        };
+
+        ret.add_to_arena(None, 0, root_node, &exes);
+
+        ret
+    }
+
+    pub fn visit_depth_first(&self, f: impl Fn(&ExecutablesTreeNode) -> ()) {
+        // the arena currently holds a depth-first linearization of the tree
+        for n in &self.arena {
+            f(n)
+        }
+    }
 }
