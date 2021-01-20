@@ -7,7 +7,7 @@ use anyhow::Context;
 use clap::{App, Arg};
 
 fn main() -> anyhow::Result<()> {
-    let matches = App::new("dependency_runner")
+    let args = App::new("dependency_runner")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Marco Esposito <marcoesposito1988@gmail.com>")
         .about("ldd for Windows - and more!")
@@ -23,29 +23,99 @@ fn main() -> anyhow::Result<()> {
                 .long("output_json_path")
                 .value_name("OUTPUT_JSON_PATH")
                 .help("Sets the path for the output JSON file")
-                .takes_value(true)
+                .takes_value(true),
         )
-        .arg(Arg::with_name("System directory")
-            .short("s")
-            .long("sysdir")
-            .value_name("SYSDIR")
-            .help("Specify a Windows System32 directory other than X:\\Windows\\System32 (X is the partition where INPUT lies)")
-            .takes_value(true))
-        .arg(Arg::with_name("Windows directory")
-            .short("w")
-            .long("windir")
-            .value_name("WINDIR")
-            .help("Specify a Windows directory other than X:\\Windows (X is the partition where INPUT lies)")
-            .takes_value(true))
-        .arg(Arg::with_name("v")
-            .short("v")
-            .multiple(true)
-            .help("Sets the level of verbosity"))
-        .get_matches();
+        .arg(
+            Arg::with_name("v")
+                .short("v")
+                .multiple(true)
+                .help("Sets the level of verbosity"),
+        )
+        .arg(
+            Arg::with_name("PRINT_SYS_DLLS")
+                .long("print_system_dlls")
+                .takes_value(false)
+                .help("Include system DLLs in the output"),
+        );
+
+    let args = {
+        #[cfg(windows)]
+        {
+            args.arg(
+                Arg::with_name("SYSDIR")
+                    .short("s")
+                    .long("sysdir")
+                    .value_name("SYSDIR")
+                    .help("Specify a Windows System32 directory other than C:\\Windows\\System32")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("WINDIR")
+                    .short("w")
+                    .long("windir")
+                    .value_name("WINDIR")
+                    .help("Specify a Windows directory other than C:\\Windows")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("WORKDIR")
+                    .short("k")
+                    .long("workdir")
+                    .value_name("WORKDIR")
+                    .help(
+                        "Specify a current working directory other than that of the current shell",
+                    )
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("PATH")
+                    .short("a")
+                    .long("userpath")
+                    .value_name("PATH")
+                    .help("Specify a user path different from that of the current shell")
+                    .takes_value(true),
+            )
+        }
+
+        #[cfg(not(windows))]
+        {
+            args
+                    .arg(Arg::with_name("SYSDIR")
+                        .short("s")
+                        .long("sysdir")
+                        .value_name("SYSDIR")
+                        .help("Specify a Windows System32 directory other than X:\\Windows\\System32 (X is the partition where INPUT lies)")
+                        .takes_value(true))
+                    .arg(Arg::with_name("WINDIR")
+                        .short("w")
+                        .long("windir")
+                        .value_name("WINDIR")
+                        .help("Specify a Windows directory other than X:\\Windows (X is the partition where INPUT lies)")
+                        .takes_value(true))
+                    .arg(Arg::with_name("WORKDIR")
+                        .short("k")
+                        .long("workdir")
+                        .value_name("WORKDIR")
+                        .help("Specify a current working directory other than that of the current shell")
+                        .takes_value(true))
+                    .arg(
+                        Arg::with_name("PATH")
+                            .short("a")
+                            .long("userpath")
+                            .value_name("PATH")
+                            .help("Specify a user path")
+                            .takes_value(true),
+                    )
+        }
+    };
+
+    let matches = args.get_matches();
 
     let verbose = matches.occurrences_of("v") > 0;
 
     let binary_path = matches.value_of("INPUT").unwrap();
+
+    let print_system_dlls = matches.is_present("With system DLLs");
 
     if !std::path::Path::new(binary_path).exists() {
         eprintln!("Specified file not found at {}", binary_path);
@@ -66,11 +136,7 @@ fn main() -> anyhow::Result<()> {
         .to_string();
 
     let context = {
-        #[cfg(not(windows))]
         let mut context = LookupContext::deduce_from_executable_location(binary_path).unwrap();
-
-        #[cfg(windows)]
-        let mut context = LookupContext::new(&binary_dir, &binary_dir);
 
         if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
             context.sys_dir = overridden_sysdir.to_string();
@@ -84,11 +150,35 @@ fn main() -> anyhow::Result<()> {
         }
         if let Some(overridden_windir) = matches.value_of("WINDIR") {
             context.win_dir = overridden_windir.to_string();
+        } else {
             if verbose {
                 println!(
                     "Windows directory not specified, assumed {}",
                     context.win_dir
                 );
+            }
+        }
+        if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
+            context.app_wd = overridden_workdir.to_string();
+        } else {
+            if verbose {
+                println!(
+                    "Working directory not specified, taken that of current directory: {}",
+                    context.app_wd
+                );
+            }
+        }
+        if let Some(overridden_path) = matches.value_of("PATH") {
+            context.env_path = overridden_path.split(";").map(str::to_string).collect();
+        } else {
+            if verbose {
+                #[cfg(windows)]
+                println!(
+                    "User path not specified, taken that of current shell: {:?}",
+                    context.env_path
+                );
+                #[cfg(not(windows))]
+                println!("User path not specified, assumed: {:?}", context.env_path);
             }
         }
         context
@@ -134,12 +224,14 @@ fn main() -> anyhow::Result<()> {
     let exe_tree = ExecutablesTreeView::new(&executables);
     exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
         if let Some(lr) = executables.get(&n.name) {
-            println!(
-                "{}{} => {}",
-                "\t".repeat(n.depth),
-                n.name,
-                lr.folder.as_ref().unwrap_or(&"not found".to_owned())
-            );
+            if !(lr.is_system.unwrap_or(true) && !print_system_dlls) {
+                println!(
+                    "{}{} => {}",
+                    "\t".repeat(n.depth),
+                    n.name,
+                    lr.folder.as_ref().unwrap_or(&"not found".to_owned())
+                );
+            }
         } else {
             println!("no data for executable {}", &n.name);
         }

@@ -8,8 +8,10 @@ mod common;
 mod path;
 mod workqueue;
 
+pub mod context;
 pub mod models;
-pub use crate::common::{Executables, LookupContext, LookupError, LookupQuery, LookupResult};
+pub use crate::common::{Executables, LookupError, LookupQuery, LookupResult};
+pub use crate::context::LookupContext;
 
 pub fn lookup_executable_dependencies<P: AsRef<Path> + ?Sized>(
     path: &P,
