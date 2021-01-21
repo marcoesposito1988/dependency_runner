@@ -10,10 +10,6 @@ use std::path::{Path, PathBuf};
 use crate::LookupError;
 use std::collections::HashMap;
 
-pub fn decanonicalize(s: &str) -> String {
-    s.replacen(r"\\?\", "", 1)
-}
-
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
 // the other modes are activated programmatically, and there is no hope to be able to handle that properly
@@ -108,10 +104,7 @@ impl WindowsSystem {
 
 #[cfg(windows)]
 fn get_winapi_directory(
-    a: unsafe extern "system" fn(
-        winapi::um::winnt::LPWSTR,
-        winapi::shared::minwindef::UINT,
-    ) -> winapi::shared::minwindef::UINT,
+    a: unsafe extern "system" fn(winapi::um::winnt::LPWSTR, winapi::shared::minwindef::UINT) -> winapi::shared::minwindef::UINT,
 ) -> Result<PathBuf, std::io::Error> {
     use std::io::Error;
 
@@ -167,10 +160,7 @@ impl WinFileSystemCache {
         let dir = self
             .files_in_dirs
             .get(&folder_str)
-            .ok_or(LookupError::ScanError(format!(
-                "Could not scan directory {:?}",
-                &folder.as_ref().to_str()
-            )))?;
+            .ok_or(LookupError::ScanError(format!("Could not scan directory {:?}", &folder.as_ref().to_str())))?;
         Ok(dir
             .get(&filename.as_ref().to_str().unwrap().to_lowercase())
             .map(|p| p.to_owned()))
@@ -180,10 +170,7 @@ impl WinFileSystemCache {
         let folder_str: String = folder
             .as_ref()
             .to_str()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not scan directory {:?}",
-                &folder.as_ref().to_str()
-            )))?
+            .ok_or(LookupError::ScanError(format!("Could not scan directory {:?}", &folder.as_ref().to_str())))?
             .to_owned();
         if !self.files_in_dirs.contains_key(&folder_str) {
             let matching_entries: HashMap<String, PathBuf> = std::fs::read_dir(folder)?

@@ -65,7 +65,7 @@ impl Workqueue {
             .query
             .target_exe
             .file_name()
-            .ok_or(LookupError::ContextDeductionError(
+            .ok_or(LookupError::ScanError(
                 "could not open file ".to_owned() + self.query.target_exe.to_str().unwrap_or(""),
             ))?
             .to_owned();

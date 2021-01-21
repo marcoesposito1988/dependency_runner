@@ -1,35 +1,26 @@
 extern crate dependency_runner;
 
+use dependency_runner::{lookup, Executable, Query};
 use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
-use dependency_runner::system::decanonicalize;
+use dependency_runner::{decanonicalize, readable_canonical_path};
+#[cfg(windows)]
+use dependency_runner::vcx::{parse_vcxproj_user, parse_vcxproj};
 #[cfg(windows)]
 use dependency_runner::LookupError;
-use dependency_runner::{lookup, Executable, Query};
 
 use anyhow::Context;
-
 use clap::{value_t, App, Arg};
-#[cfg(windows)]
-use dependency_runner::vcx::{
-    extract_debugging_configuration_per_config_from_vcxproj_user,
-    extract_executable_information_per_config_from_vcxproj,
-};
 use std::path::PathBuf;
 
 #[cfg(windows)]
-fn pick_configuration(
-    configs: &Vec<&String>,
-    user_config: &Option<&str>,
-    file_path: &str,
-) -> Result<String, LookupError> {
+fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_path: &str) -> Result<String, LookupError> {
     if let Some(vcx_config) = user_config {
         if configs.contains(&&vcx_config.to_string()) {
             Ok(vcx_config.to_owned().to_string())
         } else {
             return Err(LookupError::ContextDeductionError(format!(
-                "The specified configuration {} was not found in project file {}\nAvailable configurations: {:?}",
-                vcx_config, file_path,
-                configs)));
+                "The specified configuration {} was not found in project file {}\n\
+                Available configurations: {:?}", vcx_config, file_path, configs)));
         }
     } else {
         if configs.len() == 1 {
@@ -40,8 +31,9 @@ fn pick_configuration(
             );
             Ok(single_config.to_owned().to_string())
         } else {
-            return Err(LookupError::ContextDeductionError(format!("Must specify a configuration with vcx-config for project file {}\nAvailable configurations: {:?}",
-                                                                  file_path, configs)));
+            return Err(LookupError::ContextDeductionError(format!(
+                "Must specify a configuration with vcx-config for project file {}\n\
+                Available configurations: {:?}", file_path, configs)));
         }
     }
 }
@@ -74,7 +66,7 @@ fn main() -> anyhow::Result<()> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("v")
+            Arg::with_name("VERBOSE")
                 .short("v")
                 .long("verbose")
                 .multiple(true)
@@ -183,7 +175,7 @@ fn main() -> anyhow::Result<()> {
 
     let matches = args.get_matches();
 
-    let verbose = matches.occurrences_of("v") > 0;
+    let verbose = matches.occurrences_of("VERBOSE") > 0;
 
     let binary_path = std::fs::canonicalize(matches.value_of("INPUT").unwrap())?;
 
@@ -201,7 +193,7 @@ fn main() -> anyhow::Result<()> {
         let mut query = if binary_path.extension().map(|e| e == "vcxproj").unwrap_or(false) {
         let vcxproj_path = &binary_path;
         let vcx_exe_info_per_config =
-            extract_executable_information_per_config_from_vcxproj(&vcxproj_path)?;
+            parse_vcxproj(&vcxproj_path)?;
         let vcx_config_to_use = pick_configuration(
             &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
             &matches.value_of("VCXPROJ_CONFIGURATION"),
@@ -216,7 +208,7 @@ fn main() -> anyhow::Result<()> {
 
         if let Some(vcxproj_user_path) = matches.value_of("VCXPROJ_USER_PATH") {
             let vcx_debug_info_per_config =
-                extract_debugging_configuration_per_config_from_vcxproj_user(&vcxproj_user_path)?;
+                parse_vcxproj_user(&vcxproj_user_path)?;
             let config_to_use = pick_configuration(
                 &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
                 &matches.value_of("VCXPROJ_CONFIGURATION"),
@@ -304,10 +296,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     if verbose {
-        println!(
-            "Looking for dependencies of binary {}\n",
-            decanonicalize(&binary_path.to_str().unwrap())
-        );
+        println!("Looking for dependencies of binary {}\n", readable_canonical_path(&binary_path)?);
         let ctx = dependency_runner::Context::new(&query);
         let decanonicalized_path: Vec<String> = ctx
             .search_path()
@@ -362,8 +351,7 @@ fn main() -> anyhow::Result<()> {
                         "not found".to_owned()
                     } else {
                         if let Some(details) = &lr.details {
-                                decanonicalize(std::fs::canonicalize(&details.folder)
-                                    .unwrap_or("INVALID".into()).to_str().unwrap_or("INVALID".into()))
+                            readable_canonical_path(&details.folder).unwrap_or("INVALID".to_owned())
                         } else {
                             "not searched".to_owned()
                         }

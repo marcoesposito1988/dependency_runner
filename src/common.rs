@@ -1,7 +1,8 @@
-use thiserror::Error;
 
 use crate::system::WindowsSystem;
 use crate::vcx::{VcxDebuggingConfiguration, VcxExecutableInformation};
+
+use thiserror::Error;
 use pelite::pe64::{Pe, PeFile};
 use serde::Serialize;
 use std::collections::hash_map::Values;
@@ -22,6 +23,9 @@ pub enum LookupError {
     #[error("Visual Studio User settings file parse error")]
     ParseError(String),
 
+    #[error("Error trying to render a file path in readable form")]
+    PathConversionError(String),
+
     #[error("Lookup context building error")]
     ContextDeductionError(String),
 
@@ -37,18 +41,47 @@ pub enum LookupError {
     InternalError(#[from] anyhow::Error),
 }
 
+/// Remove the extended path prefix (\\?\) for readability
+pub fn decanonicalize(s: &str) -> String {
+    s.replacen(r"\\?\", "", 1)
+}
+
+/// Provide the canonical form of the Path as a string, or die trying
+pub fn readable_canonical_path<P: AsRef<Path>>(p: P) -> Result<String, LookupError> {
+    Ok(decanonicalize(std::fs::canonicalize(&p)?
+        .to_str()
+        .ok_or(LookupError::PathConversionError(
+            format!("Can't compute canonic path for {:?}", p.as_ref())))?))
+}
+
+pub fn path_to_string<P: AsRef<Path>>(p: P) -> String {
+    p.as_ref().to_str().unwrap_or(format!("{:?}", p.as_ref()).as_ref()).to_owned()
+}
+
+pub fn osstring_to_string(p: &OsStr) -> String {
+    p.to_str().unwrap_or(format!("{:?}", p).as_ref()).to_owned()
+}
+
+/// Complete specification of a search task
 #[derive(Clone)]
 pub struct Query {
     pub system: WindowsSystem,
+    /// Path to the target executable
     pub target_exe: PathBuf,
+    /// Parent directory of target_exe, cached
     pub app_dir: PathBuf,
+    /// Working directory as it should appear in the search path
     pub working_dir: PathBuf,
+    /// Maximum library recursion depth for the search
     pub max_depth: Option<usize>,
+    /// Skip searching dependencies of DLLs found in system directories
     pub skip_system_dlls: bool,
 }
 
 impl Query {
-    // autodetects the settings with sensible defaults
+    /// autodetects the settings with sensible defaults
+    ///
+    /// The working directory will be set to the one containing the executable (i.e. the app_dir)
     #[cfg(windows)]
     pub fn deduce_from_executable_location<P: AsRef<Path>>(
         target_exe: P,
@@ -70,7 +103,9 @@ impl Query {
         })
     }
 
-    // autodetects the settings with sensible defaults
+    /// autodetects the settings with sensible defaults
+    ///
+    /// The working directory will be set to the one containing the executable (i.e. the app_dir)
     #[cfg(not(windows))]
     pub fn deduce_from_executable_location<P: AsRef<Path>>(
         target_exe: P,
@@ -92,6 +127,9 @@ impl Query {
         })
     }
 
+    /// update this Query with the information contained in a .vcxproj.user file
+    ///
+    /// Will set the working directory and the PATH to the ones specified in the file
     pub fn update_from_vcx_debugging_configuration(
         &mut self,
         debugging_configuration: &VcxDebuggingConfiguration,
@@ -104,6 +142,10 @@ impl Query {
         }
     }
 
+    /// create a Query with the information contained in a .vcxproj file
+    ///
+    /// Will extract the executable location from the file
+    /// If the respective .vcxproj.user file is found, the contained information will be used
     pub fn read_from_vcx_executable_information(
         exe_info: &VcxExecutableInformation,
     ) -> Result<Self, LookupError> {
@@ -136,21 +178,29 @@ impl Query {
     }
 }
 
+/// Metadata for a found executable file
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecutableDetails {
     /// located in a system directory (Win or Sys dir)
     pub is_system: bool,
-    /// because it is among the KnownDLLs list, or a dependency thereof
+    /// it is among the KnownDLLs list, or a dependency thereof
     pub is_known_dll: bool,
+    /// containing folder
     pub folder: PathBuf,
+    /// names of the DLLs this executable file depends on
     pub dependencies: Option<Vec<String>>,
 }
 
+/// Information about a DLL that was mentioned as target for the search
 #[derive(Debug, Clone, Serialize)]
 pub struct Executable {
+    /// name as it appears in the import table
     pub name: OsString,
+    /// depth at which the file was first mentioned in the dependency tree
     pub depth_first_appearance: usize,
+    /// if the file was found on the PATH
     pub found: bool,
+    /// metadata extracted from the actual executable file
     pub details: Option<ExecutableDetails>,
 }
 
@@ -160,6 +210,7 @@ impl Executable {
     }
 }
 
+/// Collection of Executable objects, result of a DLL search
 #[derive(Debug, Clone)]
 pub struct Executables {
     index: std::collections::HashMap<OsString, Executable>,
@@ -204,10 +255,10 @@ impl Executables {
     }
 }
 
+/// read the names of the DLLs this executable depends on
 pub fn read_dependencies<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Vec<String>, LookupError> {
     use LookupError::{CouldNotOpenFile, ProcessingError};
-    let path = path.as_ref();
-    let map = pelite::FileMap::open(path).map_err(|e| CouldNotOpenFile { source: e })?;
+    let map = pelite::FileMap::open(path.as_ref()).map_err(|e| CouldNotOpenFile { source: e })?;
     let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError { source: e })?;
 
     // Access the import directory

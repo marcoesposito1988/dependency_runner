@@ -2,7 +2,7 @@ extern crate dependency_runner;
 
 use clap::{App, Arg};
 
-use dependency_runner::system::decanonicalize;
+use dependency_runner::{path_to_string, osstring_to_string, decanonicalize};
 use dependency_runner::{lookup, Context, Executable, Query};
 
 fn main() -> anyhow::Result<()> {
@@ -28,7 +28,7 @@ fn main() -> anyhow::Result<()> {
             .value_name("WINDIR")
             .help("Specify a Windows directory other than X:\\Windows (X is the partition where INPUT lies)")
             .takes_value(true))
-        .arg(Arg::with_name("v")
+        .arg(Arg::with_name("VERBOSE")
             .short("v")
             .multiple(true)
             .help("Sets the level of verbosity"))
@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
         )
         .get_matches();
 
-    let verbose = matches.occurrences_of("v") > 0;
+    let verbose = matches.occurrences_of("VERBOSE") > 0;
 
     let binary_path = matches.value_of("INPUT").unwrap();
 
@@ -51,26 +51,19 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    // we pass just the executable filename, and we rely on the fact that its own folder is first on the search path
     let mut query = Query::deduce_from_executable_location(binary_path)?;
 
     if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
-        query.system.sys_dir = overridden_sysdir.to_string().parse()?;
+        query.system.sys_dir = std::fs::canonicalize(overridden_sysdir)?;
     } else {
         if verbose {
-            println!(
-                "System32 directory not specified, assumed {}",
-                query.system.sys_dir.to_str().unwrap_or("---")
-            );
+            println!("System32 directory not specified, assumed {}", path_to_string(&query.system.sys_dir));
         }
     }
     if let Some(overridden_windir) = matches.value_of("WINDIR") {
-        query.system.win_dir = overridden_windir.to_string().parse()?;
+        query.system.win_dir = std::fs::canonicalize(overridden_windir)?;
         if verbose {
-            println!(
-                "Windows directory not specified, assumed {}",
-                query.system.win_dir.to_str().unwrap_or("---")
-            );
+            println!("Windows directory not specified, assumed {}", path_to_string(&query.system.win_dir));
         }
     }
 
@@ -80,25 +73,20 @@ fn main() -> anyhow::Result<()> {
     // printing in depth order
     let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
     sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
+    debug_assert_eq!(sorted_executables.first().unwrap().name, query.target_exe.file_name().unwrap());
 
     let prefix = " ".repeat(8); // as ldd
 
-    for e in sorted_executables {
+    for e in sorted_executables.iter().skip(1) {
         if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && hide_system_dlls) {
             if e.found {
-                println!(
-                    "{}{} => {}",
-                    &prefix,
-                    e.name.to_str().unwrap_or("---"),
-                    e.full_path()
-                        .and_then(|p| { p.to_str().map(|f| decanonicalize(f)) })
-                        .unwrap_or("INVALID PATH".to_owned())
-                );
+                println!("{}{} => {}", &prefix, osstring_to_string(&e.name),
+                         decanonicalize(&path_to_string(e.full_path().unwrap())));
             } else {
                 println!(
                     "{}{} => not found",
                     &prefix,
-                    e.name.to_str().unwrap_or("---")
+                    e.name.to_str().unwrap_or(format!("{:?}", e.name).as_ref())
                 );
             }
         }

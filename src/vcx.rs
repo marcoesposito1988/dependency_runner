@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::LookupError;
 use std::path::PathBuf;
+use crate::readable_canonical_path;
 
 // Parsing of Visual Studio files
 
@@ -95,10 +96,14 @@ fn extract_debugging_configuration_from_config_node(
     Ok(ret)
 }
 
-// TODO make private
-// extracts the PATH variable from the file (can only relate to a single executable, but there may be specified many configurations)
-// and the working directory (<LocalDebuggerWorkingDirectory> property)
-pub fn extract_debugging_configuration_per_config_from_vcxproj_user<
+// extracts the debugging configuration for an executable from the respective .vcxproj.user file
+//
+// A .vcxproj file can only relate to a single executable, but there may be specified many
+// configurations (Debug, Release, ...)
+// Extracted properties:
+// - PATH variable (in the <LocalDebuggerEnvironment> property)
+// - working directory (value of the <LocalDebuggerWorkingDirectory> property)
+pub fn parse_vcxproj_user<
     P: AsRef<std::path::Path> + ?Sized,
 >(
     p: &P,
@@ -137,57 +142,43 @@ pub struct VcxExecutableInformation {
     pub debugging_configuration: Option<VcxDebuggingConfiguration>,
 }
 
-pub fn extract_executable_information_per_config_from_vcxproj<
-    P: AsRef<std::path::Path> + ?Sized,
->(
-    p: &P,
-) -> anyhow::Result<HashMap<String, VcxExecutableInformation>> {
+fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
+    root
+        .descendants()
+        .filter(|n: &roxmltree::Node| n.has_tag_name(tag))
+        .map(|n| {
+            if let Some(od) = n.text() {
+                extract_config_from_node(&n).and_then(|c| Ok((c.clone(), od.to_owned())))
+            } else {
+                Err(LookupError::ParseError(format!("Empty {} tag", tag)))
+            }
+        })
+        .filter_map(Result::ok)
+        .collect()
+}
+
+// extracts relevant information for an executable from the respective .vcxproj file
+//
+// A .vcxproj file can only relate to a single executable, but there may be specified many
+// configurations (Debug, Release, ...)
+// Extracted properties:
+// - output executable path (composed of <OutDir>, <TargetName>, <TargetExt>)
+// - debugging information, if the respective .vcxproj.user is found next to the .vcxproj
+pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>
+(p: &P) -> anyhow::Result<HashMap<String, VcxExecutableInformation>> {
     let filecontent = std::fs::read_to_string(p)?;
     let doc = roxmltree::Document::parse(&filecontent)?;
     let project_node = doc
         .descendants()
         .find(|n| n.has_tag_name("Project"))
         .ok_or(LookupError::ParseError(
-            "Failed to find Project tag".to_owned(),
+            format!("Failed to find <Project> tag in file {}", readable_canonical_path(p.as_ref())?),
         ))?;
 
     // extract the file path the config refers to (outdir + target name + extension)
-    let outdir_per_config: HashMap<String, String> = project_node
-        .descendants()
-        .filter(|n: &roxmltree::Node| n.has_tag_name("OutDir"))
-        .map(|n| {
-            if let Some(od) = n.text() {
-                extract_config_from_node(&n).and_then(|c| Ok((c.clone(), od.to_owned())))
-            } else {
-                Err(LookupError::ParseError("Empty OutDir tag".to_owned()))
-            }
-        })
-        .filter_map(Result::ok)
-        .collect();
-    let targetname_nodes: HashMap<String, String> = project_node
-        .descendants()
-        .filter(|n| n.has_tag_name("TargetName"))
-        .map(|n| {
-            if let Some(tn) = n.text() {
-                extract_config_from_node(&n).and_then(|c| Ok((c, tn.to_owned())))
-            } else {
-                Err(LookupError::ParseError("Empty TargetName tag".to_owned()))
-            }
-        })
-        .filter_map(Result::ok)
-        .collect();
-    let targetext_nodes: HashMap<String, String> = project_node
-        .descendants()
-        .filter(|n| n.has_tag_name("TargetExt"))
-        .map(|n| {
-            if let Some(te) = n.text() {
-                extract_config_from_node(&n).and_then(|c| Ok((c, te.to_owned())))
-            } else {
-                Err(LookupError::ParseError("Empty TargetExt tag".to_owned()))
-            }
-        })
-        .filter_map(Result::ok)
-        .collect();
+    let outdir_per_config = extract_tag(&project_node, "OutDir");
+    let targetname_per_config = extract_tag(&project_node, "TargetName");
+    let targetext_per_config = extract_tag(&project_node, "TargetExt");
 
     let configs: Vec<_> = outdir_per_config.keys().collect();
 
@@ -196,8 +187,8 @@ pub fn extract_executable_information_per_config_from_vcxproj<
         .map(|&c| {
             let (e_dir, e_name, e_ext) = (
                 &outdir_per_config[c],
-                &targetname_nodes[c],
-                &targetext_nodes[c],
+                &targetname_per_config[c],
+                &targetext_per_config[c],
             );
             // TODO: fix handling of win path from linux
             if let Some(full_path) = std::path::Path::new(e_dir)
@@ -227,8 +218,7 @@ pub fn extract_executable_information_per_config_from_vcxproj<
             vcxuser_filename.push(".user");
             let vcxproj_user_path = parent_dir.join(vcxuser_filename);
             if vcxproj_user_path.exists() {
-                if let Ok(debugging_configuration_per_config) =
-                    extract_debugging_configuration_per_config_from_vcxproj_user(&vcxproj_user_path)
+                if let Ok(debugging_configuration_per_config) = parse_vcxproj_user(&vcxproj_user_path)
                 {
                     for (c, dc) in debugging_configuration_per_config {
                         if let Some(outdir) = executable_info_per_config.get_mut(&c) {
