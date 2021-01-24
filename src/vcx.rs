@@ -71,7 +71,7 @@ fn extract_debugging_configuration_from_config_node(
                 ))?;
         let path_entries = path_env_var_without_varname.split(";");
         let path_entries_no_vars: Vec<PathBuf> = path_entries
-            .filter(|s| !s.contains("$") && !s.is_empty())
+            .filter(|s| !s.contains("$") && !s.contains("%") && !s.is_empty())
             .map(|s| PathBuf::from(s))
             .collect();
         ret.path = Some(path_entries_no_vars);
@@ -231,4 +231,87 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>
     }
 
     Ok(executable_info_per_config)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::LookupError;
+
+    #[test]
+    fn vcxproj() -> Result<(), LookupError> {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+        let vcxproj_path = d.join("test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/DepRunTest.vcxproj");
+        let p = super::parse_vcxproj(&vcxproj_path)?;
+
+        let mut config: Vec<&String> = p.keys().collect();
+        config.sort();
+        assert_eq!(config, vec!["Debug", "MinSizeRel", "RelWithDebInfo", "Release"]);
+
+        let debug_exe_info = &p["Debug"];
+
+        let expected_exe_path = d.to_str().unwrap().to_owned() +
+            r"\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTest\Debug\DepRunTest.exe";
+        assert_eq!(&debug_exe_info.executable_path, &expected_exe_path);
+
+        assert!(debug_exe_info.debugging_configuration.is_some());
+        let deb_config = debug_exe_info.debugging_configuration.as_ref().unwrap();
+
+        assert_eq!(deb_config.configuration, "Debug");
+
+        let workdir = d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug");
+        assert_eq!(deb_config.working_directory, Some(workdir));
+
+        let expected_path = vec![ d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug")];
+        assert_eq!(deb_config.path, Some(expected_path));
+
+        Ok(())
+    }
+
+    #[test]
+    fn vcxproj_no_user() -> Result<(), LookupError> {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+        let vcxproj_path = d.join("test_data/test_project1/DepRunTest/build/DepRunTest/DepRunTest.vcxproj");
+        let p = super::parse_vcxproj(&vcxproj_path)?;
+
+        let mut config: Vec<&String> = p.keys().collect();
+        config.sort();
+        assert_eq!(config, vec!["Debug", "MinSizeRel", "RelWithDebInfo", "Release"]);
+
+        let debug_exe_info = &p["Debug"];
+
+        let expected_exe_path = d.to_str().unwrap().to_owned() +
+            r"\test_data\test_project1\DepRunTest\build\DepRunTest\Debug\DepRunTest.exe";
+        assert_eq!(&debug_exe_info.executable_path, &expected_exe_path);
+
+        assert!(debug_exe_info.debugging_configuration.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn vcxproj_user() -> Result<(), LookupError> {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+        let vcxproj_path = d.join("test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/DepRunTest.vcxproj.user");
+        let p = super::parse_vcxproj_user(&vcxproj_path)?;
+
+        let mut config: Vec<&String> = p.keys().collect();
+        config.sort();
+        assert_eq!(config, vec!["Debug"]);
+
+        let deb_config = &p["Debug"];
+
+        assert_eq!(deb_config.configuration, "Debug");
+
+        let workdir = d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug");
+        assert_eq!(deb_config.working_directory, Some(workdir));
+
+        let expected_path = vec![ d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug")];
+        assert_eq!(deb_config.path, Some(expected_path));
+
+        Ok(())
+    }
 }
