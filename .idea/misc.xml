@@ -3,6 +3,11 @@
   <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$/test_data/test_project1/DepRunTestLibWrong">
     <contentRoot DIR="$PROJECT_DIR$" />
   </component>
+  <component name="CidrRootsConfiguration">
+    <excludeRoots>
+      <file path="$PROJECT_DIR$/target" />
+    </excludeRoots>
+  </component>
   <component name="Michael.U.Bergens.CopyNixDirPlugin">
     <option name="replaceWith" value="" />
     <option name="search" value="" />

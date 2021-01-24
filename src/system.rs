@@ -188,3 +188,40 @@ impl WinFileSystemCache {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::WindowsSystem;
+    use crate::LookupError;
+    use crate::system::WinFileSystemCache;
+    use std::path::PathBuf;
+
+    #[cfg(windows)]
+    #[test]
+    fn context_win10() -> Result<(), LookupError> {
+        let ctx = WindowsSystem::current()?;
+        assert_eq!(ctx.win_dir, std::fs::canonicalize("C:\\Windows")?);
+        assert_eq!(ctx.sys_dir, std::fs::canonicalize("C:\\Windows\\System32")?);
+
+        // TODO: once implemented, document that it can fail if system is set otherwise
+        // assert_eq!(ctx.safe_dll_search_mode_on, Some(true));
+
+        // this changes from computer to computer, but we should get something
+        let user_path = ctx.path;
+        assert!(user_path.is_some());
+        assert!(user_path.unwrap().contains(&std::fs::canonicalize("C:\\Windows")?));
+        Ok(())
+    }
+
+    #[test]
+    fn fscache() -> Result<(), LookupError> {
+        let mut fscache = WinFileSystemCache::new();
+        let test_file_path = std::fs::canonicalize("C:\\Windows\\win.ini")?;
+        let expected_res = Some(PathBuf::from("win.ini"));
+        assert!(test_file_path.exists());
+        assert_eq!(fscache.test_file_in_folder_case_insensitive("win.ini", "C:\\Windows")?, expected_res);
+        assert_eq!(fscache.test_file_in_folder_case_insensitive("Win.ini", "C:\\Windows")?, expected_res);
+        assert_eq!(fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", "C:\\Windows")?, None);
+        Ok(())
+    }
+}
