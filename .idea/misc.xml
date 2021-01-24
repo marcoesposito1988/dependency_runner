@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$/test_data/test_project1/DepRunTestLibWrong">
+    <contentRoot DIR="$PROJECT_DIR$" />
+  </component>
+  <component name="Michael.U.Bergens.CopyNixDirPlugin">
+    <option name="replaceWith" value="" />
+    <option name="search" value="" />
+    <option name="tryString" value="C:\dir\blah\meh\file.ext" />
+  </component>
+</project>

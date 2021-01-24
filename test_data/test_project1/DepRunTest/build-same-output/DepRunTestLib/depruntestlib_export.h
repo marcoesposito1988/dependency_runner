@@ -1,0 +1,42 @@
+
+#ifndef DEPRUNTESTLIB_EXPORT_H
+#define DEPRUNTESTLIB_EXPORT_H
+
+#ifdef DEPRUNTESTLIB_STATIC_DEFINE
+#  define DEPRUNTESTLIB_EXPORT
+#  define DEPRUNTESTLIB_NO_EXPORT
+#else
+#  ifndef DEPRUNTESTLIB_EXPORT
+#    ifdef DepRunTestLib_EXPORTS
+        /* We are building this library */
+#      define DEPRUNTESTLIB_EXPORT __declspec(dllexport)
+#    else
+        /* We are using this library */
+#      define DEPRUNTESTLIB_EXPORT __declspec(dllimport)
+#    endif
+#  endif
+
+#  ifndef DEPRUNTESTLIB_NO_EXPORT
+#    define DEPRUNTESTLIB_NO_EXPORT 
+#  endif
+#endif
+
+#ifndef DEPRUNTESTLIB_DEPRECATED
+#  define DEPRUNTESTLIB_DEPRECATED __declspec(deprecated)
+#endif
+
+#ifndef DEPRUNTESTLIB_DEPRECATED_EXPORT
+#  define DEPRUNTESTLIB_DEPRECATED_EXPORT DEPRUNTESTLIB_EXPORT DEPRUNTESTLIB_DEPRECATED
+#endif
+
+#ifndef DEPRUNTESTLIB_DEPRECATED_NO_EXPORT
+#  define DEPRUNTESTLIB_DEPRECATED_NO_EXPORT DEPRUNTESTLIB_NO_EXPORT DEPRUNTESTLIB_DEPRECATED
+#endif
+
+#if 0 /* DEFINE_NO_DEPRECATED */
+#  ifndef DEPRUNTESTLIB_NO_DEPRECATED
+#    define DEPRUNTESTLIB_NO_DEPRECATED
+#  endif
+#endif
+
+#endif /* DEPRUNTESTLIB_EXPORT_H */

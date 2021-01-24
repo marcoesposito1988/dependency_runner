@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\DepRunTestLib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\DepRunTestLib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{CC16B70B-9CF3-331A-9222-E40795D45488}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{501C7385-48E5-352C-86DD-7AB2885DBA18}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
