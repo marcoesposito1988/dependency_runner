@@ -19,7 +19,7 @@ use std::collections::HashMap;
 // if running from within Win: we extract system directory paths from Win32 APIs, and read the
 // PATH env var (the user can override everything later if necessary)
 // if running in another OS: we can only guess the directories, and can't do anything about the PATH
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
     pub known_dlls: Option<Vec<PathBuf>>,
@@ -223,5 +223,15 @@ mod tests {
         assert_eq!(fscache.test_file_in_folder_case_insensitive("Win.ini", "C:\\Windows")?, expected_res);
         assert_eq!(fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", "C:\\Windows")?, None);
         Ok(())
+    }
+}
+
+impl PartialEq for WindowsSystem {
+    fn eq(&self, other: &Self) -> bool {
+        self.sys_dir == other.sys_dir
+            && self.win_dir == other.win_dir
+            && self.safe_dll_search_mode_on == other.safe_dll_search_mode_on
+            && self.known_dlls == other.known_dlls
+        && self.path == other.path
     }
 }

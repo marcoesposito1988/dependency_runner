@@ -119,3 +119,29 @@ impl LookupQuery {
         Ok(ret)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::LookupError;
+    use crate::query::LookupQuery;
+    use crate::system::WindowsSystem;
+
+    #[test]
+    fn build_query() -> Result<(), LookupError> {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        let query = LookupQuery::deduce_from_executable_location(&exe_path)?;
+        assert_eq!(query.skip_system_dlls, false);
+        assert_eq!(&query.target_exe, &exe_path);
+        assert_eq!(&query.working_dir, &std::fs::canonicalize(&exe_path.parent().unwrap())?);
+        assert_eq!(&query.app_dir, &std::fs::canonicalize(&exe_path.parent().unwrap())?);
+        assert!(&query.max_depth.is_none());
+        #[cfg(windows)]
+        {
+            assert_eq!(&query.system, &WindowsSystem::current()?);
+        }
+
+        Ok(())
+    }
+}
