@@ -1,8 +1,8 @@
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-use crate::common::{read_dependencies, ExecutableDetails, Query};
-use crate::{Context, Executable, Executables, LookupError};
+use crate::common::{read_dependencies, ExecutableDetails, LookupQuery};
+use crate::{LookupPath, Executable, Executables, LookupError};
 
 #[derive(Debug)]
 struct Job {
@@ -10,15 +10,15 @@ struct Job {
     pub depth: usize,
 }
 
-pub(crate) struct Workqueue {
-    query: Query,
-    context: Context,
+pub(crate) struct Runner {
+    query: LookupQuery,
+    context: LookupPath,
     executables_to_lookup: Vec<Job>,
     executables_found: Executables, // using lowercase filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
 }
 
-impl Workqueue {
-    pub(crate) fn new(query: &Query, context: Context) -> Self {
+impl Runner {
+    pub(crate) fn new(query: &LookupQuery, context: LookupPath) -> Self {
         Self {
             context,
             query: query.clone(),

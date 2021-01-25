@@ -1,17 +1,17 @@
 extern crate thiserror;
 
-mod workqueue;
+mod runner;
 mod system;
 
 pub mod common;
-pub mod context;
+pub mod lookup_path;
 pub mod vcx;
 pub mod models;
-pub use common::{Executable, Executables, LookupError, Query};
+pub use common::{Executable, Executables, LookupError, LookupQuery};
 pub use common::{readable_canonical_path, path_to_string, osstring_to_string, decanonicalize};
-pub use context::Context;
+pub use lookup_path::LookupPath;
 
-pub fn lookup(query: &Query, context: Context) -> Result<Executables, LookupError> {
-    let mut wq = workqueue::Workqueue::new(query, context);
+pub fn lookup(query: &LookupQuery, context: LookupPath) -> Result<Executables, LookupError> {
+    let mut wq = runner::Runner::new(query, context);
     wq.run()
 }

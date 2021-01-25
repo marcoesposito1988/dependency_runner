@@ -6,7 +6,7 @@ use std::ffi::OsString;
 // in our Executables DAG, a node can have multiple parents (and appear at multiple depths)
 // this class just provides a reified tree view of the DAG
 
-pub struct LookupResultTreeNode {
+pub struct ExecutablesTreeNode {
     pub name: String,
     pub parent: Option<String>,
     pub depth: usize,
@@ -14,13 +14,13 @@ pub struct LookupResultTreeNode {
 }
 
 // ordered depth-first: root is first node
-pub struct LookupResultTreeView {
-    pub arena: Vec<LookupResultTreeNode>,
+pub struct ExecutablesTreeView {
+    pub arena: Vec<ExecutablesTreeNode>,
     pub index: std::collections::HashMap<String, usize>,
     pub executables: Executables,
 }
 
-impl LookupResultTreeView {
+impl ExecutablesTreeView {
     fn add_to_arena(
         &mut self,
         parent: Option<OsString>,
@@ -30,7 +30,7 @@ impl LookupResultTreeView {
     ) {
         if let Some(name) = lr.name.to_str() {
             let this_index = self.arena.len();
-            self.arena.push(LookupResultTreeNode {
+            self.arena.push(ExecutablesTreeNode {
                 name: name.to_owned(),
                 depth,
                 parent: parent.map(|p| p.to_str().unwrap_or("INVALID").to_owned()),
@@ -89,7 +89,7 @@ impl LookupResultTreeView {
         ret
     }
 
-    pub fn visit_depth_first(&self, f: impl Fn(&LookupResultTreeNode) -> ()) {
+    pub fn visit_depth_first(&self, f: impl Fn(&ExecutablesTreeNode) -> ()) {
         // the arena currently holds a depth-first linearization of the tree
         for n in &self.arena {
             f(n)

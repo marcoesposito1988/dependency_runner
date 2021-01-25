@@ -1,7 +1,7 @@
 extern crate dependency_runner;
 
-use dependency_runner::{lookup, Executable, Query};
-use dependency_runner::models::{LookupResultTreeNode, LookupResultTreeView};
+use dependency_runner::{lookup, Executable, LookupQuery};
+use dependency_runner::models::{ExecutablesTreeNode, ExecutablesTreeView};
 use dependency_runner::{decanonicalize, readable_canonical_path};
 #[cfg(windows)]
 use dependency_runner::vcx::{parse_vcxproj_user, parse_vcxproj};
@@ -187,7 +187,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(not(windows))]
-        let mut query = Query::deduce_from_executable_location(&binary_path)?;
+        let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
     #[cfg(windows)]
         let mut query = if binary_path.extension().map(|e| e == "vcxproj").unwrap_or(false) {
@@ -202,9 +202,9 @@ fn main() -> anyhow::Result<()> {
         )?;
         let vcx_exe_info = &vcx_exe_info_per_config[&vcx_config_to_use];
 
-        Query::read_from_vcx_executable_information(vcx_exe_info)?
+        LookupQuery::read_from_vcx_executable_information(vcx_exe_info)?
     } else {
-        let mut query = Query::deduce_from_executable_location(&binary_path)?;
+        let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
         if let Some(vcxproj_user_path) = matches.value_of("VCXPROJ_USER_PATH") {
             let vcx_debug_info_per_config =
@@ -226,13 +226,13 @@ fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(not(windows))]
-        let context = dependency_runner::context::Context::new(&query);
+        let context = dependency_runner::lookup_path::LookupPath::new(&query);
 
     #[cfg(windows)]
         let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
-        dependency_runner::context::Context::from_dwp_file(dwp_file_path, &query)?
+        dependency_runner::lookup_path::LookupPath::from_dwp_file(dwp_file_path, &query)?
     } else {
-        dependency_runner::context::Context::new(&query)
+        dependency_runner::lookup_path::LookupPath::new(&query)
     };
 
     // overrides (must be last)
@@ -297,7 +297,7 @@ fn main() -> anyhow::Result<()> {
 
     if verbose {
         println!("Looking for dependencies of binary {}\n", readable_canonical_path(&binary_path)?);
-        let ctx = dependency_runner::Context::new(&query);
+        let ctx = dependency_runner::LookupPath::new(&query);
         let decanonicalized_path: Vec<String> = ctx
             .search_path()
             .iter()
@@ -340,8 +340,8 @@ fn main() -> anyhow::Result<()> {
 
     // printing in tree order
     //
-    let exe_tree = LookupResultTreeView::new(&executables);
-    exe_tree.visit_depth_first(|n: &LookupResultTreeNode| {
+    let exe_tree = ExecutablesTreeView::new(&executables);
+    exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
         if query.max_depth.map(|d| n.depth < d).unwrap_or(true) {
             if let Some(lr) = executables.get(n.name.as_ref()) {
                 if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(false)

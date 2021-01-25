@@ -64,7 +64,7 @@ pub fn osstring_to_string(p: &OsStr) -> String {
 
 /// Complete specification of a search task
 #[derive(Clone)]
-pub struct Query {
+pub struct LookupQuery {
     pub system: WindowsSystem,
     /// Path to the target executable
     pub target_exe: PathBuf,
@@ -78,7 +78,7 @@ pub struct Query {
     pub skip_system_dlls: bool,
 }
 
-impl Query {
+impl LookupQuery {
     /// autodetects the settings with sensible defaults
     ///
     /// The working directory will be set to the one containing the executable (i.e. the app_dir)

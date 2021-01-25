@@ -3,7 +3,7 @@ extern crate dependency_runner;
 use clap::{App, Arg};
 
 use dependency_runner::{path_to_string, osstring_to_string, decanonicalize};
-use dependency_runner::{lookup, Context, Executable, Query};
+use dependency_runner::{lookup, LookupPath, Executable, LookupQuery};
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")
@@ -51,7 +51,7 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    let mut query = Query::deduce_from_executable_location(binary_path)?;
+    let mut query = LookupQuery::deduce_from_executable_location(binary_path)?;
 
     if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
         query.system.sys_dir = std::fs::canonicalize(overridden_sysdir)?;
@@ -67,7 +67,7 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let context = Context::new(&query);
+    let context = LookupPath::new(&query);
     let executables = lookup(&query, context)?;
 
     // printing in depth order

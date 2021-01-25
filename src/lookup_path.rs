@@ -1,13 +1,12 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use crate::common::Query;
-use crate::context::ContextEntryType::{ExecutableDir, KnownDLLs, SystemDir, UserPath, WindowsDir};
+use crate::common::LookupQuery;
 use crate::system::WinFileSystemCache;
 use crate::LookupError;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub enum ContextEntryType {
+pub enum LookupPathEntryType {
     KnownDLLs,
     ExecutableDir,
     SystemDir,
@@ -18,58 +17,58 @@ pub enum ContextEntryType {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct ContextEntry {
-    pub dir_type: ContextEntryType,
+pub struct LookupPathEntry {
+    pub dir_type: LookupPathEntryType,
     pub path: PathBuf,
 }
 
-impl ContextEntry {
+impl LookupPathEntry {
     pub(crate) fn is_system(&self) -> bool {
         [
-            ContextEntryType::WindowsDir,
-            ContextEntryType::SystemDir,
+            LookupPathEntryType::WindowsDir,
+            LookupPathEntryType::SystemDir,
             // ContextEntryType::SystemDir16,
         ]
         .contains(&self.dir_type)
     }
 }
 
-pub struct ContextLookupResult {
-    pub location: ContextEntry,
+pub struct LookupResult {
+    pub location: LookupPathEntry,
     pub fullpath: PathBuf,
 }
 
-pub struct Context {
-    pub entries: Vec<ContextEntry>,
+pub struct LookupPath {
+    pub entries: Vec<LookupPathEntry>,
     fs_cache: std::cell::RefCell<WinFileSystemCache>,
 }
 
-impl Context {
-    pub fn new(query: &Query) -> Self {
+impl LookupPath {
+    pub fn new(query: &LookupQuery) -> Self {
         let entries = if query.system.safe_dll_search_mode_on.unwrap_or(true) {
             // default mode (assume if not specified)
             let system_entries = vec![
-                ContextEntry {
-                    dir_type: ContextEntryType::ExecutableDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::ExecutableDir,
                     path: query.app_dir.clone(),
                 },
-                ContextEntry {
-                    dir_type: ContextEntryType::SystemDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::SystemDir,
                     path: query.system.sys_dir.clone(),
                 },
                 // TODO: we should resolve API sets properly as in https://lucasg.github.io/2017/10/15/Api-set-resolution/
                 // for now, we just add the /downlevel directory and call it a day
-                ContextEntry {
-                    dir_type: ContextEntryType::SystemDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::SystemDir,
                     path: query.system.sys_dir.join("downlevel"),
                 },
                 // 16-bit system directory ignored
-                ContextEntry {
-                    dir_type: ContextEntryType::WindowsDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::WindowsDir,
                     path: query.system.win_dir.clone(),
                 },
-                ContextEntry {
-                    dir_type: ContextEntryType::WorkingDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::WorkingDir,
                     path: query.working_dir.clone(),
                 },
             ];
@@ -78,27 +77,27 @@ impl Context {
         } else {
             // if HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode is 0
             let system_entries = vec![
-                ContextEntry {
-                    dir_type: ContextEntryType::ExecutableDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::ExecutableDir,
                     path: query.app_dir.clone(),
                 },
-                ContextEntry {
-                    dir_type: ContextEntryType::WorkingDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::WorkingDir,
                     path: query.working_dir.clone(),
                 },
-                ContextEntry {
-                    dir_type: ContextEntryType::SystemDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::SystemDir,
                     path: query.system.sys_dir.clone(),
                 },
                 // TODO: we should resolve API sets properly as in https://lucasg.github.io/2017/10/15/Api-set-resolution/
                 // for now, we just add the /downlevel directory and call it a day
-                ContextEntry {
-                    dir_type: ContextEntryType::SystemDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::SystemDir,
                     path: query.system.sys_dir.join("downlevel"),
                 },
                 // 16-bit system directory ignored
-                ContextEntry {
-                    dir_type: ContextEntryType::WindowsDir,
+                LookupPathEntry {
+                    dir_type: LookupPathEntryType::WindowsDir,
                     path: query.system.win_dir.clone(),
                 },
             ];
@@ -112,46 +111,46 @@ impl Context {
         }
     }
 
-    fn system_path_entries(q: &Query) -> Vec<ContextEntry> {
+    fn system_path_entries(q: &LookupQuery) -> Vec<LookupPathEntry> {
         q.system
             .path
             .as_ref()
             .unwrap_or(&Vec::new())
             .iter()
-            .map(|s| ContextEntry {
-                dir_type: ContextEntryType::UserPath,
+            .map(|s| LookupPathEntry {
+                dir_type: LookupPathEntryType::UserPath,
                 path: s.clone(),
             })
             .collect::<Vec<_>>()
     }
 
-    fn dwp_string_to_context_entry(s: &str, q: &Query) -> Result<Vec<ContextEntry>, LookupError> {
+    fn dwp_string_to_context_entry(s: &str, q: &LookupQuery) -> Result<Vec<LookupPathEntry>, LookupError> {
         match s {
             "SxS" => Ok(vec![]), // TODO?
-            "KnownDLLs" => Ok(vec![ContextEntry {
-                dir_type: KnownDLLs,
+            "KnownDLLs" => Ok(vec![LookupPathEntry {
+                dir_type: LookupPathEntryType::KnownDLLs,
                 path: PathBuf::new(),
             }]),
-            "AppDir" => Ok(vec![ContextEntry {
-                dir_type: ExecutableDir,
+            "AppDir" => Ok(vec![LookupPathEntry {
+                dir_type: LookupPathEntryType::ExecutableDir,
                 path: q.app_dir.clone(),
             }]),
-            "32BitSysDir" => Ok(vec![ContextEntry {
-                dir_type: SystemDir,
+            "32BitSysDir" => Ok(vec![LookupPathEntry {
+                dir_type: LookupPathEntryType::SystemDir,
                 path: q.system.sys_dir.clone(),
             }]),
             "16BitSysDir" => Ok(vec![]), // ignored
-            "OSDir" => Ok(vec![ContextEntry {
-                dir_type: WindowsDir,
+            "OSDir" => Ok(vec![LookupPathEntry {
+                dir_type: LookupPathEntryType::WindowsDir,
                 path: q.system.win_dir.clone(),
             }]),
             "AppPath" => Ok(vec![]), // TODO? https://docs.microsoft.com/en-us/windows/win32/shell/app-registration
-            "SysPath" => Ok(vec![ContextEntry {
-                dir_type: UserPath,
+            "SysPath" => Ok(vec![LookupPathEntry {
+                dir_type: LookupPathEntryType::UserPath,
                 path: q.system.win_dir.clone(),
             }]),
-            _ if s.starts_with("UserDir ") => Ok(vec![ContextEntry {
-                dir_type: UserPath,
+            _ if s.starts_with("UserDir ") => Ok(vec![LookupPathEntry {
+                dir_type: LookupPathEntryType::UserPath,
                 path: PathBuf::from(&s[8..]),
             }]),
             _ => Err(LookupError::ParseError(format!(
@@ -161,7 +160,7 @@ impl Context {
         }
     }
 
-    pub fn from_dwp_file<P: AsRef<Path>>(dwp_path: P, q: &Query) -> Result<Self, LookupError> {
+    pub fn from_dwp_file<P: AsRef<Path>>(dwp_path: P, q: &LookupQuery) -> Result<Self, LookupError> {
         // https://www.dependencywalker.com/help/html/path_files.htm
         let comment_chars = [':', ';', '/', '\'', '#'];
         let lines: Vec<String> = std::fs::read_to_string(dwp_path)?
@@ -172,7 +171,7 @@ impl Context {
         let entries_vecs = lines
             .iter()
             .map(|e| Self::dwp_string_to_context_entry(e, q))
-            .collect::<Result<Vec<Vec<ContextEntry>>, LookupError>>()?;
+            .collect::<Result<Vec<Vec<LookupPathEntry>>, LookupError>>()?;
         Ok(Self {
             entries: entries_vecs.concat(),
             fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
@@ -186,7 +185,7 @@ impl Context {
         if let Some(sys_dir) = self
             .entries
             .iter()
-            .find(|e| e.dir_type == ContextEntryType::SystemDir)
+            .find(|e| e.dir_type == LookupPathEntryType::SystemDir)
         {
             ret.insert(0, sys_dir.path.join("downlevel")); // TODO: remove hack for API sets
         }
@@ -198,7 +197,7 @@ impl Context {
     pub fn search_file(
         &self,
         filename: &OsStr,
-    ) -> Result<Option<ContextLookupResult>, LookupError> {
+    ) -> Result<Option<LookupResult>, LookupError> {
         for e in &self.entries {
             if let Ok(found) = self
                 .fs_cache
@@ -209,7 +208,7 @@ impl Context {
                     let mut p = std::path::PathBuf::new();
                     p.push(e.path.clone());
                     p.push(actual_filename);
-                    return Ok(Some(ContextLookupResult {
+                    return Ok(Some(LookupResult {
                         fullpath: p,
                         location: e.clone(),
                     }));
