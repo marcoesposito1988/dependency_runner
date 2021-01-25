@@ -41,7 +41,7 @@ impl LookupQuery {
             app_dir: app_dir.canonicalize()?,
             working_dir: app_dir.canonicalize()?,
             max_depth: None,
-            skip_system_dlls: true,
+            skip_system_dlls: false,
         })
     }
 
