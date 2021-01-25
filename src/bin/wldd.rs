@@ -71,9 +71,7 @@ fn main() -> anyhow::Result<()> {
     let executables = lookup(&query, context)?;
 
     // printing in depth order
-    let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
-    sorted_executables.sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
-    debug_assert_eq!(sorted_executables.first().unwrap().name, query.target_exe.file_name().unwrap());
+    let sorted_executables: Vec<&Executable> = executables.sorted_by_first_appearance();
 
     let prefix = " ".repeat(8); // as ldd
 

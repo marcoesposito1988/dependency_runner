@@ -1,4 +1,4 @@
-use crate::{Executable, Executables};
+use crate::{Executable, Executables, LookupError};
 use std::ffi::OsString;
 
 // tree view of nodes referencing Executables in a LookupResult
@@ -60,33 +60,18 @@ impl ExecutablesTreeView {
         }
     }
 
-    pub fn new(exes: &Executables) -> Self {
-        let root_nodes: Vec<&Executable> = exes
-            .values()
-            .filter(|le| le.depth_first_appearance == 0)
-            .collect();
-
-        if root_nodes.len() > 1 {
-            panic!("Found multiple root nodes in the Executables");
-            // TODO: list found root nodes, proper error handling
-        }
-
-        if root_nodes.len() == 0 {
-            panic!("No root node found in the Executables");
-            // TODO: list found root nodes, proper error handling
-        }
-
-        let root_node = root_nodes.first().unwrap();
-
+    pub fn new(exes: &Executables) -> Result<Self, LookupError> {
         let mut ret = Self {
             arena: Vec::new(),
             index: std::collections::HashMap::new(),
             executables: exes.clone(),
         };
 
-        ret.add_to_arena(None, 0, root_node, &exes);
+        if let Some(root) = exes.get_root()? {
+            ret.add_to_arena(None, 0, root, &exes);
+        }
 
-        ret
+        Ok(ret)
     }
 
     pub fn visit_depth_first(&self, f: impl Fn(&ExecutablesTreeNode) -> ()) {

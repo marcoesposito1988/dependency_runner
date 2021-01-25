@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use crate::common::LookupQuery;
+use crate::query::LookupQuery;
 use crate::system::WinFileSystemCache;
 use crate::LookupError;
 

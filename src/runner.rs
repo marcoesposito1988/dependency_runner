@@ -1,8 +1,10 @@
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-use crate::common::{read_dependencies, ExecutableDetails, LookupQuery};
-use crate::{LookupPath, Executable, Executables, LookupError};
+use crate::common::{read_dependencies, LookupError};
+use crate::executable::{ExecutableDetails, Executable, Executables};
+use crate::lookup_path::{LookupPath};
+use crate::query::LookupQuery;
 
 #[derive(Debug)]
 struct Job {

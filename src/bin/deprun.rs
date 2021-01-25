@@ -1,6 +1,6 @@
 extern crate dependency_runner;
 
-use dependency_runner::{lookup, Executable, LookupQuery};
+use dependency_runner::{lookup, LookupQuery};
 use dependency_runner::models::{ExecutablesTreeNode, ExecutablesTreeView};
 use dependency_runner::{decanonicalize, readable_canonical_path};
 #[cfg(windows)]
@@ -308,12 +308,7 @@ fn main() -> anyhow::Result<()> {
 
     let executables = lookup(&query, context)?;
 
-    let sorted_executables = {
-        let mut sorted_executables: Vec<Executable> = executables.values().cloned().collect();
-        sorted_executables
-            .sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
-        sorted_executables
-    };
+    let sorted_executables = executables.sorted_by_first_appearance();
 
     // printing in depth order // TODO: arg to choose output format
     //
@@ -340,7 +335,7 @@ fn main() -> anyhow::Result<()> {
 
     // printing in tree order
     //
-    let exe_tree = ExecutablesTreeView::new(&executables);
+    let exe_tree = ExecutablesTreeView::new(&executables)?;
     exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
         if query.max_depth.map(|d| n.depth < d).unwrap_or(true) {
             if let Some(lr) = executables.get(n.name.as_ref()) {
