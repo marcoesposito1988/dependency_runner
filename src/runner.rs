@@ -1,7 +1,8 @@
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-use crate::common::{read_dependencies, LookupError};
+use crate::common::{LookupError};
+use crate::pe::read_dependencies;
 use crate::executable::{ExecutableDetails, Executable, Executables};
 use crate::lookup_path::{LookupPath, LookupPathEntryType};
 use crate::query::LookupQuery;
