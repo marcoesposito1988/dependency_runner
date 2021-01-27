@@ -100,3 +100,64 @@ impl Executables {
         sorted_executables
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{LookupError, Executables};
+    use crate::query::LookupQuery;
+    use crate::lookup_path::LookupPath;
+    use crate::runner::Runner;
+    use std::collections::HashSet;
+    use std::iter::FromIterator;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn empty_executables() -> Result<(), LookupError> {
+        let exes = Executables::new();
+        assert!(!exes.contains(OsStr::new("NonExistingExecutable.exe")));
+
+        assert!(exes.get(OsStr::new("NonExistingExecutable.exe")).is_none());
+
+        assert!(exes.get_root()?.is_none());
+
+        assert!(exes.sorted_by_first_appearance().is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn executables() -> Result<(), LookupError> {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        let mut query = LookupQuery::deduce_from_executable_location(&exe_path)?;
+        query.skip_system_dlls = true;
+        let context = LookupPath::new(&query);
+        let mut runner = Runner::new(&query, context);
+        let exes = runner.run()?;
+
+        assert!(exes.contains(OsStr::new("DepRunTest.exe")));
+        assert!(exes.contains(OsStr::new("depruntest.exe")));
+        assert!(!exes.contains(OsStr::new("NonExistingExecutable.exe")));
+
+        assert!(exes.get(OsStr::new("NonExistingExecutable.exe")).is_none());
+        assert!(exes.get(OsStr::new("DepRunTest.exe")).is_some());
+
+        assert_eq!(exes.get_root()?.unwrap().name, "DepRunTest.exe");
+
+        let sorted = exes.sorted_by_first_appearance();
+        let sorted_names: HashSet<&str> = sorted.iter()
+            .filter(|e| e.details.as_ref().map(|d| !d.is_system).unwrap_or(false))
+            .map(|e| e.name.to_str().unwrap()).collect();
+        let expected_names: HashSet<&str> = HashSet::from_iter(
+            ["DepRunTestLib.dll", "DepRunTest.exe",].iter().map(|&s|s));
+        assert_eq!(sorted_names, expected_names);
+
+        let exe_p = exes.get_root()?.unwrap().full_path();
+        assert!(exe_p.is_some());
+        assert_eq!(exe_p.unwrap(), std::fs::canonicalize(exe_path)?);
+
+        Ok(())
+    }
+}
