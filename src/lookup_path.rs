@@ -9,6 +9,7 @@ use crate::LookupError;
 pub enum LookupPathEntryType {
     KnownDLLs,
     ExecutableDir,
+    ApiSet,
     SystemDir,
     // SystemDir16, // ignored
     WindowsDir,
@@ -59,7 +60,7 @@ impl LookupPath {
                 // TODO: we should resolve API sets properly as in https://lucasg.github.io/2017/10/15/Api-set-resolution/
                 // for now, we just add the /downlevel directory and call it a day
                 LookupPathEntry {
-                    dir_type: LookupPathEntryType::SystemDir,
+                    dir_type: LookupPathEntryType::ApiSet,
                     path: query.system.sys_dir.join("downlevel"),
                 },
                 // 16-bit system directory ignored

@@ -1,7 +1,6 @@
 extern crate dependency_runner;
 
-use dependency_runner::{lookup, LookupQuery};
-use dependency_runner::models::{ExecutablesTreeNode, ExecutablesTreeView};
+use dependency_runner::{lookup, LookupQuery, Executable, Executables};
 use dependency_runner::{decanonicalize, readable_canonical_path};
 #[cfg(windows)]
 use dependency_runner::vcx::{parse_vcxproj_user, parse_vcxproj};
@@ -11,6 +10,7 @@ use dependency_runner::LookupError;
 use anyhow::Context;
 use clap::{value_t, App, Arg};
 use std::path::PathBuf;
+use std::ffi::OsString;
 
 #[cfg(windows)]
 fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_path: &str) -> Result<String, LookupError> {
@@ -34,6 +34,39 @@ fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_p
             return Err(LookupError::ContextDeductionError(format!(
                 "Must specify a configuration with vcx-config for project file {}\n\
                 Available configurations: {:?}", file_path, configs)));
+        }
+    }
+}
+
+fn visit_depth_first(e: &Executable, current_depth: usize, exes: &Executables, query: &LookupQuery, print_system_dlls: bool) {
+    if query.max_depth.map(|d| current_depth < d).unwrap_or(true) {
+        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false)
+            && !print_system_dlls)
+        {
+            let folder = if !e.found {
+                "not found".to_owned()
+            } else {
+                if let Some(details) = &e.details {
+                    readable_canonical_path(&details.folder).unwrap_or("INVALID".to_owned())
+                } else {
+                    "not searched".to_owned()
+                }
+            };
+            println!("{}{} => {}", "\t".repeat(current_depth), e.name.to_str().unwrap(), folder);
+
+            if let Some(details) = &e.details {
+                if !details.is_system {
+                    // TODO: may be feasible with api set resolution
+                    if let Some(dependencies) = &details.dependencies {
+                        for d in dependencies {
+                            if let Some(de) = exes.get(&OsString::from(&d)){
+
+                                visit_depth_first(de, current_depth+1, exes, query, print_system_dlls);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -333,31 +366,10 @@ fn main() -> anyhow::Result<()> {
     //     }
     // }
 
-    // printing in tree order
-    //
-    let exe_tree = ExecutablesTreeView::new(&executables)?;
-    exe_tree.visit_depth_first(|n: &ExecutablesTreeNode| {
-        if query.max_depth.map(|d| n.depth < d).unwrap_or(true) {
-            if let Some(lr) = executables.get(n.name.as_ref()) {
-                if !(lr.details.as_ref().map(|d| d.is_system).unwrap_or(false)
-                    && !print_system_dlls)
-                {
-                    let folder = if !lr.found {
-                        "not found".to_owned()
-                    } else {
-                        if let Some(details) = &lr.details {
-                            readable_canonical_path(&details.folder).unwrap_or("INVALID".to_owned())
-                        } else {
-                            "not searched".to_owned()
-                        }
-                    };
-                    println!("{}{} => {}", "\t".repeat(n.depth), n.name, folder);
-                }
-            } else {
-                println!("no data for executable {}", &n.name);
-            }
-        }
-    });
+    // printing depth-first
+    if let Some(root)  = executables.get_root()? {
+        visit_depth_first(root, 0, &executables, &query, print_system_dlls);
+    }
 
     // JSON representation
 

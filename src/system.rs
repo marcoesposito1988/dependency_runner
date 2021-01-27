@@ -102,6 +102,16 @@ impl WindowsSystem {
     }
 }
 
+impl PartialEq for WindowsSystem {
+    fn eq(&self, other: &Self) -> bool {
+        self.sys_dir == other.sys_dir
+            && self.win_dir == other.win_dir
+            && self.safe_dll_search_mode_on == other.safe_dll_search_mode_on
+            && self.known_dlls == other.known_dlls
+            && self.path == other.path
+    }
+}
+
 #[cfg(windows)]
 fn get_winapi_directory(
     a: unsafe extern "system" fn(winapi::um::winnt::LPWSTR, winapi::shared::minwindef::UINT) -> winapi::shared::minwindef::UINT,
@@ -121,12 +131,12 @@ fn get_winapi_directory(
 }
 
 #[cfg(windows)]
-pub fn get_system_directory() -> Result<PathBuf, std::io::Error> {
+fn get_system_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW);
 }
 
 #[cfg(windows)]
-pub fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
+fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 
@@ -223,15 +233,5 @@ mod tests {
         assert_eq!(fscache.test_file_in_folder_case_insensitive("Win.ini", "C:\\Windows")?, expected_res);
         assert_eq!(fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", "C:\\Windows")?, None);
         Ok(())
-    }
-}
-
-impl PartialEq for WindowsSystem {
-    fn eq(&self, other: &Self) -> bool {
-        self.sys_dir == other.sys_dir
-            && self.win_dir == other.win_dir
-            && self.safe_dll_search_mode_on == other.safe_dll_search_mode_on
-            && self.known_dlls == other.known_dlls
-        && self.path == other.path
     }
 }

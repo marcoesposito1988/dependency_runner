@@ -1,6 +1,6 @@
 
 use std::path::Path;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use thiserror::Error;
 use pelite::pe64::{Pe, PeFile};
 
@@ -23,6 +23,9 @@ pub enum LookupError {
 
     #[error("Lookup context building error")]
     ContextDeductionError(String),
+
+    #[error("OsString could not be converted into a string")]
+    OsStringConversionError(OsString),
 
     #[error(transparent)]
     VarError(#[from] std::env::VarError),

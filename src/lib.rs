@@ -6,7 +6,6 @@ mod system;
 pub mod common;
 pub mod lookup_path;
 pub mod vcx;
-pub mod models;
 mod executable;
 mod query;
 

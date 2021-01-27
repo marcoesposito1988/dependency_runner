@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::common::{read_dependencies, LookupError};
 use crate::executable::{ExecutableDetails, Executable, Executables};
-use crate::lookup_path::{LookupPath};
+use crate::lookup_path::{LookupPath, LookupPathEntryType};
 use crate::query::LookupQuery;
 
 #[derive(Debug)]
@@ -86,9 +86,10 @@ impl Runner {
                     let folder = r.fullpath.parent().unwrap();
                     let actual_name = Path::new(&r.fullpath).file_name().unwrap_or("".as_ref());
                     let is_system = r.location.is_system();
+                    let is_api_set = r.location.dir_type == LookupPathEntryType::ApiSet;
 
                     if let Ok(dependencies) = read_dependencies(&r.fullpath) {
-                        if !(self.query.skip_system_dlls && is_system) {
+                        if !(is_api_set || (self.query.skip_system_dlls && is_system)) {
                             for d in &dependencies {
                                 let dos = OsString::from(d);
                                 self.enqueue(&dos, depth + 1);
