@@ -1,4 +1,5 @@
 extern crate thiserror;
+extern crate msvc_demangler;
 
 use crate::LookupError;
 use pelite::pe64::{Pe, PeFile};
@@ -69,6 +70,11 @@ pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError
         .iter_names()
         .map(|(name, _)| name.unwrap().to_str().unwrap().to_owned())
         .collect())
+}
+
+pub fn demangle_symbol(symbol: &str) -> Result<String, LookupError> {
+    let flags = msvc_demangler::DemangleFlags::llvm();
+    msvc_demangler::demangle(symbol, flags).map_err(|_| LookupError::DemanglingError(symbol.to_owned()))
 }
 
 #[cfg(test)]

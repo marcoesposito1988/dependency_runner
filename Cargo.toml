@@ -15,6 +15,7 @@ clap = "2.33.3"
 serde_json = "1.0.59"
 roxmltree = "0.13.0"
 regex = "1.4.2"
+msvc-demangler = "0.8.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["winuser", "sysinfoapi"] }

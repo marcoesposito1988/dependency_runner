@@ -23,6 +23,9 @@ pub enum LookupError {
     #[error("Lookup context building error")]
     ContextDeductionError(String),
 
+    #[error("Could not demangle symbol")]
+    DemanglingError(String),
+
     #[error("OsString could not be converted into a string")]
     OsStringConversionError(OsString),
 

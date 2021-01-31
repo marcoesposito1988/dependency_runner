@@ -1,7 +1,7 @@
 extern crate dependency_runner;
 
 use dependency_runner::{lookup, LookupQuery, Executable, Executables};
-use dependency_runner::{decanonicalize, readable_canonical_path};
+use dependency_runner::{decanonicalize, readable_canonical_path, demangle_symbol};
 #[cfg(windows)]
 use dependency_runner::vcx::{parse_vcxproj_user, parse_vcxproj};
 #[cfg(windows)]
@@ -412,7 +412,7 @@ fn main() -> anyhow::Result<()> {
                             for (missing_import_dll, missing_symbols) in missing_imports {
                                 println!("\t\t{}", missing_import_dll);
                                 for missing_symbol in missing_symbols {
-                                    println!("\t\t\t{}", missing_symbol);
+                                    println!("\t\t\t{}", demangle_symbol(missing_symbol).as_ref().unwrap_or(missing_symbol));
                                 }
                             }
                         }
