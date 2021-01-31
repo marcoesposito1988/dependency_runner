@@ -1,6 +1,5 @@
-
-use std::path::Path;
 use std::ffi::{OsStr, OsString};
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -50,15 +49,20 @@ pub fn decanonicalize(s: &str) -> String {
 
 /// Provide the canonical form of the Path as a string, or die trying
 pub fn readable_canonical_path<P: AsRef<Path>>(p: P) -> Result<String, LookupError> {
-    Ok(decanonicalize(std::fs::canonicalize(&p)?
-        .to_str()
-        .ok_or(LookupError::PathConversionError(
-            format!("Can't compute canonic path for {:?}", p.as_ref())))?))
+    Ok(decanonicalize(std::fs::canonicalize(&p)?.to_str().ok_or(
+        LookupError::PathConversionError(format!(
+            "Can't compute canonic path for {:?}",
+            p.as_ref()
+        )),
+    )?))
 }
 
 /// Shorthand to get some kind of readable representation of a path
 pub fn path_to_string<P: AsRef<Path>>(p: P) -> String {
-    p.as_ref().to_str().unwrap_or(format!("{:?}", p.as_ref()).as_ref()).to_owned()
+    p.as_ref()
+        .to_str()
+        .unwrap_or(format!("{:?}", p.as_ref()).as_ref())
+        .to_owned()
 }
 
 /// Shorthand to get some kind of readable representation of an OsStr
@@ -68,9 +72,7 @@ pub fn osstring_to_string(p: &OsStr) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{LookupError, decanonicalize, readable_canonical_path};
-    use crate::common::read_dependencies;
-    use std::collections::HashSet;
+    use crate::{decanonicalize, readable_canonical_path, LookupError};
 
     #[test]
     fn decanonicalize_removes_prefix() -> Result<(), LookupError> {

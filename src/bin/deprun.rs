@@ -1,25 +1,33 @@
 extern crate dependency_runner;
 
-use dependency_runner::{lookup, LookupQuery, Executable, Executables};
-use dependency_runner::{decanonicalize, readable_canonical_path, demangle_symbol};
 #[cfg(windows)]
-use dependency_runner::vcx::{parse_vcxproj_user, parse_vcxproj};
+use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
 #[cfg(windows)]
 use dependency_runner::LookupError;
+use dependency_runner::{decanonicalize, demangle_symbol, readable_canonical_path};
+use dependency_runner::{
+    lookup, path_to_string, Executable, Executables, LookupQuery, WindowsSystem,
+};
 
 use anyhow::Context;
 use clap::{value_t, App, Arg};
 use std::path::PathBuf;
 
 #[cfg(windows)]
-fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_path: &str) -> Result<String, LookupError> {
+fn pick_configuration(
+    configs: &Vec<&String>,
+    user_config: &Option<&str>,
+    file_path: &str,
+) -> Result<String, LookupError> {
     if let Some(vcx_config) = user_config {
         if configs.contains(&&vcx_config.to_string()) {
             Ok(vcx_config.to_owned().to_string())
         } else {
             return Err(LookupError::ContextDeductionError(format!(
                 "The specified configuration {} was not found in project file {}\n\
-                Available configurations: {:?}", vcx_config, file_path, configs)));
+                Available configurations: {:?}",
+                vcx_config, file_path, configs
+            )));
         }
     } else {
         if configs.len() == 1 {
@@ -32,21 +40,30 @@ fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_p
         } else {
             return Err(LookupError::ContextDeductionError(format!(
                 "Must specify a configuration with vcx-config for project file {}\n\
-                Available configurations: {:?}", file_path, configs)));
+                Available configurations: {:?}",
+                file_path, configs
+            )));
         }
     }
 }
 
-fn visit_depth_first(e: &Executable, current_depth: usize, exes: &Executables, query: &LookupQuery, print_system_dlls: bool) {
+fn visit_depth_first(
+    e: &Executable,
+    current_depth: usize,
+    exes: &Executables,
+    query: &LookupQuery,
+    print_system_dlls: bool,
+) {
     if query.max_depth.map(|d| current_depth < d).unwrap_or(true) {
-        if !(e.details.as_ref().map(|d| d.is_api_set).unwrap_or(false) || (e.details.as_ref().map(|d| d.is_system).unwrap_or(false)
-            && !print_system_dlls))
+        if !(e.details.as_ref().map(|d| d.is_api_set).unwrap_or(false)
+            || (e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls))
         {
             let folder = if !e.found {
                 "not found".to_owned()
             } else {
                 if let Some(details) = &e.details {
-                    readable_canonical_path(&details.full_path.parent().unwrap()).unwrap_or("INVALID".to_owned())
+                    readable_canonical_path(&details.full_path.parent().unwrap())
+                        .unwrap_or("INVALID".to_owned())
                 } else {
                     "not searched".to_owned()
                 }
@@ -58,8 +75,14 @@ fn visit_depth_first(e: &Executable, current_depth: usize, exes: &Executables, q
                     // TODO: may be feasible with api set resolution
                     if let Some(dependencies) = &details.dependencies {
                         for d in dependencies {
-                            if let Some(de) = exes.get(&d){
-                                visit_depth_first(de, current_depth+1, exes, query, print_system_dlls);
+                            if let Some(de) = exes.get(&d) {
+                                visit_depth_first(
+                                    de,
+                                    current_depth + 1,
+                                    exes,
+                                    query,
+                                    print_system_dlls,
+                                );
                             }
                         }
                     }
@@ -119,22 +142,7 @@ fn main() -> anyhow::Result<()> {
     let args = {
         #[cfg(windows)]
             {
-                args.arg(
-                    Arg::with_name("SYSDIR")
-                        .short("s")
-                        .long("sysdir")
-                        .value_name("SYSDIR")
-                        .help("Specify a Windows System32 directory other than C:\\Windows\\System32")
-                        .takes_value(true),
-                )
-                    .arg(
-                        Arg::with_name("WINDIR")
-                            .short("w")
-                            .long("windir")
-                            .value_name("WINDIR")
-                            .help("Specify a Windows directory other than C:\\Windows")
-                            .takes_value(true),
-                    )
+                args
                     .arg(
                         Arg::with_name("WORKDIR")
                             .short("k")
@@ -181,17 +189,11 @@ fn main() -> anyhow::Result<()> {
         #[cfg(not(windows))]
             {
                 args
-                    .arg(Arg::with_name("SYSDIR")
-                        .short("s")
-                        .long("sysdir")
-                        .value_name("SYSDIR")
-                        .help("Specify a Windows System32 directory other than X:\\Windows\\System32 (X is the partition where INPUT lies)")
-                        .takes_value(true))
-                    .arg(Arg::with_name("WINDIR")
+                    .arg(Arg::with_name("Windows root")
                         .short("w")
-                        .long("windir")
-                        .value_name("WINDIR")
-                        .help("Specify a Windows directory other than X:\\Windows (X is the partition where INPUT lies)")
+                        .long("windows-root")
+                        .value_name("WINROOT")
+                        .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
                         .takes_value(true))
                     .arg(Arg::with_name("WORKDIR")
                         .short("k")
@@ -214,30 +216,39 @@ fn main() -> anyhow::Result<()> {
 
     let verbose = matches.occurrences_of("VERBOSE") > 0;
 
-    let binary_path = std::fs::canonicalize(matches.value_of("INPUT").unwrap())?;
+    let binary_path = PathBuf::from(matches.value_of("INPUT").unwrap());
+
+    if !binary_path.exists() {
+        eprintln!("Specified file not found at {}", binary_path.to_str().unwrap());
+        std::process::exit(1);
+    }
+
+    let binary_path = std::fs::canonicalize(binary_path)?;
 
     let print_system_dlls = matches.is_present("PRINT_SYS_DLLS");
 
     let check_symbols = matches.is_present("CHECK_SYMBOLS");
 
-    if !binary_path.exists() {
-        eprintln!("Specified file not found at {:?}", binary_path);
-        std::process::exit(1);
-    }
-
     #[cfg(not(windows))]
         let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
     #[cfg(windows)]
-        let mut query = if binary_path.extension().map(|e| e == "vcxproj").unwrap_or(false) {
+        let mut query = if binary_path
+        .extension()
+        .map(|e| e == "vcxproj")
+        .unwrap_or(false)
+    {
         let vcxproj_path = &binary_path;
-        let vcx_exe_info_per_config =
-            parse_vcxproj(&vcxproj_path)?;
+        let vcx_exe_info_per_config = parse_vcxproj(&vcxproj_path)?;
         let vcx_config_to_use = pick_configuration(
             &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
             &matches.value_of("VCXPROJ_CONFIGURATION"),
-            vcxproj_path.to_str().ok_or(LookupError::ContextDeductionError(
-                format!("Could not open {:?} as a .vcxproj file", vcxproj_path)))?,
+            vcxproj_path
+                .to_str()
+                .ok_or(LookupError::ContextDeductionError(format!(
+                    "Could not open {:?} as a .vcxproj file",
+                    vcxproj_path
+                )))?,
         )?;
         let vcx_exe_info = &vcx_exe_info_per_config[&vcx_config_to_use];
 
@@ -246,8 +257,7 @@ fn main() -> anyhow::Result<()> {
         let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
         if let Some(vcxproj_user_path) = matches.value_of("VCXPROJ_USER_PATH") {
-            let vcx_debug_info_per_config =
-                parse_vcxproj_user(&vcxproj_user_path)?;
+            let vcx_debug_info_per_config = parse_vcxproj_user(&vcxproj_user_path)?;
             let config_to_use = pick_configuration(
                 &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
                 &matches.value_of("VCXPROJ_CONFIGURATION"),
@@ -278,26 +288,21 @@ fn main() -> anyhow::Result<()> {
 
     // overrides (must be last)
 
-    if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
-        query.system.sys_dir = PathBuf::from(overridden_sysdir);
+    if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
+        query.system = WindowsSystem::from_root(overridden_sysdir);
     } else {
         if verbose {
-            println!(
-                "System32 directory not specified, assumed {}",
-                decanonicalize(query.system.sys_dir.to_str().unwrap_or("---"))
-            );
+            if let Some(system) = &query.system {
+                println!(
+                    "Windows partition root not specified, assumed {}",
+                    path_to_string(&system.sys_dir)
+                );
+            } else {
+                println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
+            }
         }
     }
-    if let Some(overridden_windir) = matches.value_of("WINDIR") {
-        query.system.win_dir = PathBuf::from(overridden_windir);
-    } else {
-        if verbose {
-            println!(
-                "Windows directory not specified, assumed {}",
-                decanonicalize(query.system.win_dir.to_str().unwrap_or("---"))
-            );
-        }
-    }
+
     if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
         query.working_dir = PathBuf::from(overridden_workdir);
     } else {
@@ -313,16 +318,12 @@ fn main() -> anyhow::Result<()> {
             .split(";")
             .map(|s| std::fs::canonicalize(s))
             .collect::<Result<Vec<_>, std::io::Error>>()?;
-        query.system.path = Some(canonicalized_path);
+        query.user_path.extend(canonicalized_path);
     } else {
         if verbose {
             #[cfg(windows)]
                 {
-                    let decanonicalized_path: Vec<String> = query
-                        .system
-                        .path
-                        .as_ref()
-                        .unwrap_or(&Vec::new())
+                    let decanonicalized_path: Vec<String> = query.user_path
                         .iter()
                         .map(|p| decanonicalize(p.to_str().unwrap()))
                         .collect();
@@ -332,12 +333,15 @@ fn main() -> anyhow::Result<()> {
                     );
                 }
             #[cfg(not(windows))]
-            println!("User path not specified, assumed: {:?}", query.system.path);
+            println!("User path not specified, assumed: {:?}", query.user_path);
         }
     };
 
     if verbose {
-        println!("Looking for dependencies of binary {}\n", readable_canonical_path(&binary_path)?);
+        println!(
+            "Looking for dependencies of binary {}\n",
+            readable_canonical_path(&binary_path)?
+        );
         let ctx = dependency_runner::LookupPath::new(&query);
         let decanonicalized_path: Vec<String> = ctx
             .search_path()
@@ -375,7 +379,7 @@ fn main() -> anyhow::Result<()> {
     // }
 
     // printing depth-first
-    if let Some(root)  = executables.get_root()? {
+    if let Some(root) = executables.get_root()? {
         visit_depth_first(root, 0, &executables, &query, print_system_dlls);
     }
 
@@ -386,7 +390,6 @@ fn main() -> anyhow::Result<()> {
         match sym_check {
             Ok(report) => {
                 if !report.not_found_libraries.is_empty() {
-
                     println!("Missing libraries detected!");
                     println!("[Importing executable, missing dependencies]\n");
                     for (importer, missing_dependencies) in report.not_found_libraries.iter() {
@@ -398,12 +401,11 @@ fn main() -> anyhow::Result<()> {
                         }
                     }
                     println!();
-                } else  {
+                } else {
                     println!("No missing libraries detected");
                 }
 
                 if let Some(missing_symbols) = report.not_found_symbols {
-
                     println!("Missing symbols detected!");
                     println!("[Importing executable, exporting executable, missing symbols]\n");
                     for (filename, missing_imports) in missing_symbols.iter() {
@@ -412,12 +414,17 @@ fn main() -> anyhow::Result<()> {
                             for (missing_import_dll, missing_symbols) in missing_imports {
                                 println!("\t\t{}", missing_import_dll);
                                 for missing_symbol in missing_symbols {
-                                    println!("\t\t\t{}", demangle_symbol(missing_symbol).as_ref().unwrap_or(missing_symbol));
+                                    println!(
+                                        "\t\t\t{}",
+                                        demangle_symbol(missing_symbol)
+                                            .as_ref()
+                                            .unwrap_or(missing_symbol)
+                                    );
                                 }
                             }
                         }
                     }
-                } else  {
+                } else {
                     println!("No missing symbols detected");
                 }
             }

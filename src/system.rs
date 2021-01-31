@@ -26,7 +26,7 @@ pub struct WindowsSystem {
     pub win_dir: PathBuf,
     pub sys_dir: PathBuf,
     // sys16_dir ignored, since it is not supported on 64-bit systems
-    pub path: Option<Vec<PathBuf>>,
+    pub system_path: Option<Vec<PathBuf>>,
 }
 
 impl WindowsSystem {
@@ -49,40 +49,30 @@ impl WindowsSystem {
             known_dlls: None,
             win_dir: get_windows_directory()?,
             sys_dir: get_system_directory()?,
-            path,
+            system_path: path,
         })
     }
 
     #[cfg(not(windows))]
-    pub fn from_exe_location<P: AsRef<Path>>(p: P) -> Result<Self, LookupError> {
+    pub fn from_exe_location<P: AsRef<Path>>(p: P) -> Result<Option<Self>, LookupError> {
         if let Some(root) = Self::find_root(&p) {
             Ok(Self::from_root(root))
         } else {
-            Err(LookupError::ContextDeductionError(
-                "Couldn't find Windows filesystem root for executable ".to_owned()
-                    + p.as_ref().to_str().unwrap_or(""),
-            ))
+            Ok(None)
         }
     }
 
     #[cfg(not(windows))]
     fn find_root<P: AsRef<Path>>(p: P) -> Option<PathBuf> {
         for a in p.as_ref().parent()?.ancestors() {
-            if Self::is_root(a) {
+            if Self::from_root(a).is_some() {
                 return Some(a.to_owned());
             }
         }
         None
     }
 
-    #[cfg(not(windows))]
-    fn is_root<P: AsRef<Path>>(p: P) -> bool {
-        let s = Self::from_root(p);
-        s.win_dir.exists() && s.sys_dir.exists()
-    }
-
-    #[cfg(not(windows))]
-    pub fn from_root<P: AsRef<Path>>(root_path: P) -> Self {
+    pub fn from_root<P: AsRef<Path>>(root_path: P) -> Option<Self> {
         // TODO: wrap hivex?
         // read known dlls from HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs,
         // and mark their dependencies (which are not listed there) as known DLLs as well
@@ -92,12 +82,16 @@ impl WindowsSystem {
         // read user path from C:\Users\<username>\NTUSER.DAT \Environment ?
         let win_dir = root_path.as_ref().join("Windows");
         let sys_dir = win_dir.join("System32");
-        Self {
-            safe_dll_search_mode_on: None,
-            known_dlls: None,
-            win_dir,
-            sys_dir,
-            path: None,
+        if sys_dir.exists() {
+            Some(Self {
+                safe_dll_search_mode_on: None,
+                known_dlls: None,
+                win_dir,
+                sys_dir,
+                system_path: None,
+            })
+        } else {
+            None
         }
     }
 }
@@ -108,13 +102,16 @@ impl PartialEq for WindowsSystem {
             && self.win_dir == other.win_dir
             && self.safe_dll_search_mode_on == other.safe_dll_search_mode_on
             && self.known_dlls == other.known_dlls
-            && self.path == other.path
+            && self.system_path == other.system_path
     }
 }
 
 #[cfg(windows)]
 fn get_winapi_directory(
-    a: unsafe extern "system" fn(winapi::um::winnt::LPWSTR, winapi::shared::minwindef::UINT) -> winapi::shared::minwindef::UINT,
+    a: unsafe extern "system" fn(
+        winapi::um::winnt::LPWSTR,
+        winapi::shared::minwindef::UINT,
+    ) -> winapi::shared::minwindef::UINT,
 ) -> Result<PathBuf, std::io::Error> {
     use std::io::Error;
 
@@ -170,7 +167,10 @@ impl WinFileSystemCache {
         let dir = self
             .files_in_dirs
             .get(&folder_str)
-            .ok_or(LookupError::ScanError(format!("Could not scan directory {:?}", &folder.as_ref().to_str())))?;
+            .ok_or(LookupError::ScanError(format!(
+                "Could not scan directory {:?}",
+                &folder.as_ref().to_str()
+            )))?;
         Ok(dir
             .get(&filename.as_ref().to_str().unwrap().to_lowercase())
             .map(|p| p.to_owned()))
@@ -180,7 +180,10 @@ impl WinFileSystemCache {
         let folder_str: String = folder
             .as_ref()
             .to_str()
-            .ok_or(LookupError::ScanError(format!("Could not scan directory {:?}", &folder.as_ref().to_str())))?
+            .ok_or(LookupError::ScanError(format!(
+                "Could not scan directory {:?}",
+                &folder.as_ref().to_str()
+            )))?
             .to_owned();
         if !self.files_in_dirs.contains_key(&folder_str) {
             let matching_entries: HashMap<String, PathBuf> = std::fs::read_dir(folder)?
@@ -201,14 +204,14 @@ impl WinFileSystemCache {
 
 #[cfg(test)]
 mod tests {
-    use super::WindowsSystem;
-    use crate::LookupError;
     use crate::system::WinFileSystemCache;
+    use crate::LookupError;
     use std::path::PathBuf;
 
     #[cfg(windows)]
     #[test]
     fn context_win10() -> Result<(), LookupError> {
+        use super::WindowsSystem;
         let ctx = WindowsSystem::current()?;
         assert_eq!(ctx.win_dir, std::fs::canonicalize("C:\\Windows")?);
         assert_eq!(ctx.sys_dir, std::fs::canonicalize("C:\\Windows\\System32")?);
@@ -219,7 +222,9 @@ mod tests {
         // this changes from computer to computer, but we should get something
         let user_path = ctx.path;
         assert!(user_path.is_some());
-        assert!(user_path.unwrap().contains(&std::fs::canonicalize("C:\\Windows")?));
+        assert!(user_path
+            .unwrap()
+            .contains(&std::fs::canonicalize("C:\\Windows")?));
         Ok(())
     }
 
@@ -229,9 +234,18 @@ mod tests {
         let test_file_path = std::fs::canonicalize("C:\\Windows\\win.ini")?;
         let expected_res = Some(PathBuf::from("win.ini"));
         assert!(test_file_path.exists());
-        assert_eq!(fscache.test_file_in_folder_case_insensitive("win.ini", "C:\\Windows")?, expected_res);
-        assert_eq!(fscache.test_file_in_folder_case_insensitive("Win.ini", "C:\\Windows")?, expected_res);
-        assert_eq!(fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", "C:\\Windows")?, None);
+        assert_eq!(
+            fscache.test_file_in_folder_case_insensitive("win.ini", "C:\\Windows")?,
+            expected_res
+        );
+        assert_eq!(
+            fscache.test_file_in_folder_case_insensitive("Win.ini", "C:\\Windows")?,
+            expected_res
+        );
+        assert_eq!(
+            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", "C:\\Windows")?,
+            None
+        );
         Ok(())
     }
 }

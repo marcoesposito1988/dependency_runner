@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 
-use crate::common::{LookupError};
-use crate::executable::{ExecutableDetails, Executable, Executables, ExecutableSymbols};
+use crate::common::LookupError;
+use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
 use crate::lookup_path::{LookupPath, LookupPathEntryType};
 use crate::query::LookupQuery;
 use crate::{pe, readable_canonical_path};
@@ -50,9 +50,17 @@ impl Runner {
         if let Some(older_finding) = self.executables_found.get(&new_finding.dllname) {
             eprintln!(
                 "Found two DLLs with the same name! {:?} and {:?}",
-                new_finding.details.as_ref().map(|d| readable_canonical_path(&d.full_path).ok()).flatten()
+                new_finding
+                    .details
+                    .as_ref()
+                    .map(|d| readable_canonical_path(&d.full_path).ok())
+                    .flatten()
                     .unwrap_or(new_finding.dllname),
-                older_finding.details.as_ref().map(|d| readable_canonical_path(&d.full_path).ok()).flatten()
+                older_finding
+                    .details
+                    .as_ref()
+                    .map(|d| readable_canonical_path(&d.full_path).ok())
+                    .flatten()
                     .unwrap_or(older_finding.dllname.clone()),
             );
         } else {
@@ -80,18 +88,29 @@ impl Runner {
                 if self.executables_found.contains(&lookup_query.dllname) {
                     continue;
                 }
-                if let Some(r) = self.context.search_file(OsStr::new(&lookup_query.dllname)).unwrap_or(None) {
-                    let filemap = pelite::FileMap::open(&r.fullpath).map_err(|e|LookupError:: CouldNotOpenFile { source: e })?;
-                    let pefile = pelite::pe64::PeFile::from_bytes(&filemap).map_err(|e| LookupError::ProcessingError { source: e })?;
+                if let Some(r) = self
+                    .context
+                    .search_file(OsStr::new(&lookup_query.dllname))
+                    .unwrap_or(None)
+                {
+                    let filemap = pelite::FileMap::open(&r.fullpath)
+                        .map_err(|e| LookupError::CouldNotOpenFile { source: e })?;
+                    let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
+                        .map_err(|e| LookupError::ProcessingError { source: e })?;
 
-                    let dllname = pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
+                    let dllname =
+                        pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
                     let is_system = r.location.is_system();
                     let is_api_set = r.location.dir_type == LookupPathEntryType::ApiSet;
-                    let dependencies = if is_api_set { None } else {Some(pe::read_dependencies(&pefile)?)};
+                    let dependencies = if is_api_set {
+                        None
+                    } else {
+                        Some(pe::read_dependencies(&pefile)?)
+                    };
                     let symbols = if !is_api_set && self.query.extract_symbols {
                         Some(ExecutableSymbols {
                             exported: pe::read_exports(&pefile)?,
-                            imported:  pe::read_imports(&pefile)?,
+                            imported: pe::read_imports(&pefile)?,
                         })
                     } else {
                         None
@@ -135,17 +154,18 @@ impl Runner {
 
 #[cfg(test)]
 mod tests {
-    use crate::LookupError;
-    use crate::query::LookupQuery;
     use crate::lookup_path::LookupPath;
+    use crate::query::LookupQuery;
     use crate::runner::Runner;
+    use crate::LookupError;
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
     #[test]
     fn run_build_same_output() -> Result<(), LookupError> {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let exe_path = d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+        let exe_path =
+            d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
 
         let mut query = LookupQuery::deduce_from_executable_location(exe_path)?;
         query.skip_system_dlls = true;
@@ -153,11 +173,13 @@ mod tests {
         let mut runner = Runner::new(&query, context);
         let res = runner.run()?;
         let sorted = res.sorted_by_first_appearance();
-        let sorted_names: HashSet<&str> = sorted.iter()
+        let sorted_names: HashSet<&str> = sorted
+            .iter()
             .filter(|e| e.details.as_ref().map(|d| !d.is_system).unwrap_or(false))
-            .map(|e| e.name.to_str().unwrap()).collect();
-        let expected_names: HashSet<&str> = HashSet::from_iter(
-            ["DepRunTestLib.dll", "DepRunTest.exe",].iter().map(|&s|s));
+            .map(|e| e.dllname.as_ref())
+            .collect();
+        let expected_names: HashSet<&str> =
+            HashSet::from_iter(["DepRunTestLib.dll", "DepRunTest.exe"].iter().map(|&s| s));
         assert_eq!(sorted_names, expected_names);
 
         Ok(())

@@ -1,13 +1,15 @@
-
-use crate::system::WindowsSystem;
 use crate::common::LookupError;
+use crate::system::WindowsSystem;
 use crate::vcx::{VcxDebuggingConfiguration, VcxExecutableInformation};
 use std::path::{Path, PathBuf};
 
 /// Complete specification of a search task
 #[derive(Clone, Debug)]
 pub struct LookupQuery {
-    pub system: WindowsSystem,
+    /// Path to the root of a Windows installation
+    pub system: Option<WindowsSystem>,
+    /// Additional executable search path set by the user
+    pub user_path: Vec<PathBuf>,
     /// Path to the target executable
     pub target_exe: PathBuf,
     /// Parent directory of target_exe, cached
@@ -38,7 +40,8 @@ impl LookupQuery {
                     + target_exe.as_ref().to_str().unwrap_or("---"),
             ))?;
         Ok(Self {
-            system: WindowsSystem::current()?,
+            system: Some(WindowsSystem::current()?),
+            user_path: vec![],
             target_exe: target_exe.as_ref().into(),
             app_dir: app_dir.canonicalize()?,
             working_dir: app_dir.canonicalize()?,
@@ -64,11 +67,13 @@ impl LookupQuery {
             ))?;
         Ok(Self {
             system: WindowsSystem::from_exe_location(&target_exe)?,
+            user_path: Vec::new(),
             target_exe: target_exe.as_ref().to_owned(),
             app_dir: app_dir.to_owned(),
             working_dir: app_dir.to_owned(),
             max_depth: None,
             skip_system_dlls: true,
+            extract_symbols: false,
         })
     }
 
@@ -80,7 +85,7 @@ impl LookupQuery {
         debugging_configuration: &VcxDebuggingConfiguration,
     ) {
         if let Some(path) = &debugging_configuration.path {
-            self.system.path = Some(path.clone());
+            self.user_path.extend(path.clone());
         }
         if let Some(working_dir) = &debugging_configuration.working_directory {
             self.working_dir = working_dir.clone();
@@ -102,12 +107,13 @@ impl LookupQuery {
         ))?;
 
         #[cfg(windows)]
-            let system = WindowsSystem::current()?;
+        let system = Some(WindowsSystem::current()?);
         #[cfg(not(windows))]
-            let system = WindowsSystem::from_exe_location(&exe_path)?;
+        let system = WindowsSystem::from_exe_location(&exe_path)?;
 
         let mut ret = Self {
             system,
+            user_path: Vec::new(),
             target_exe: exe_path.to_owned(),
             app_dir: app_dir.to_owned(),
             working_dir: app_dir.to_owned(),
@@ -126,23 +132,31 @@ impl LookupQuery {
 
 #[cfg(test)]
 mod tests {
-    use crate::LookupError;
     use crate::query::LookupQuery;
-    use crate::system::WindowsSystem;
+    use crate::LookupError;
 
     #[test]
     fn build_query() -> Result<(), LookupError> {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let exe_path = d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+        let relative_path =
+            "test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe";
+        let exe_path = d.join(relative_path);
 
         let query = LookupQuery::deduce_from_executable_location(&exe_path)?;
         assert_eq!(query.skip_system_dlls, false);
-        assert_eq!(&query.target_exe, &exe_path);
-        assert_eq!(&query.working_dir, &std::fs::canonicalize(&exe_path.parent().unwrap())?);
-        assert_eq!(&query.app_dir, &std::fs::canonicalize(&exe_path.parent().unwrap())?);
+        assert!(&query.target_exe.ends_with(relative_path));
+        assert_eq!(
+            &query.working_dir,
+            &std::fs::canonicalize(&exe_path.parent().unwrap())?
+        );
+        assert_eq!(
+            &query.app_dir,
+            &std::fs::canonicalize(&exe_path.parent().unwrap())?
+        );
         assert!(&query.max_depth.is_none());
         #[cfg(windows)]
         {
+            use crate::system::WindowsSystem;
             assert_eq!(&query.system, &WindowsSystem::current()?);
         }
 

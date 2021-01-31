@@ -2,8 +2,8 @@ extern crate dependency_runner;
 
 use clap::{App, Arg};
 
-use dependency_runner::{path_to_string, decanonicalize, readable_canonical_path};
-use dependency_runner::{lookup, LookupPath, Executable, LookupQuery};
+use dependency_runner::{decanonicalize, path_to_string, readable_canonical_path};
+use dependency_runner::{lookup, Executable, LookupPath, LookupQuery, WindowsSystem};
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")
@@ -16,17 +16,11 @@ fn main() -> anyhow::Result<()> {
                 .required(true)
                 .index(1),
         )
-        .arg(Arg::with_name("System directory")
-            .short("s")
-            .long("sysdir")
-            .value_name("SYSDIR")
-            .help("Specify a Windows System32 directory other than X:\\Windows\\System32 (X is the partition where INPUT lies)")
-            .takes_value(true))
-        .arg(Arg::with_name("Windows directory")
+        .arg(Arg::with_name("Windows root")
             .short("w")
-            .long("windir")
-            .value_name("WINDIR")
-            .help("Specify a Windows directory other than X:\\Windows (X is the partition where INPUT lies)")
+            .long("windows-root")
+            .value_name("WINROOT")
+            .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
             .takes_value(true))
         .arg(Arg::with_name("VERBOSE")
             .short("v")
@@ -42,28 +36,31 @@ fn main() -> anyhow::Result<()> {
 
     let verbose = matches.occurrences_of("VERBOSE") > 0;
 
-    let binary_path = matches.value_of("INPUT").unwrap();
+    let binary_path = std::path::PathBuf::from(matches.value_of("INPUT").unwrap());
 
-    let hide_system_dlls = matches.is_present("HIDE_SYS_DLLS");
-
-    if !std::path::Path::new(binary_path).exists() {
-        eprintln!("Specified file not found at {}", binary_path);
+    if !binary_path.exists() {
+        eprintln!("Specified file not found at {}", binary_path.to_str().unwrap());
         std::process::exit(1);
     }
 
+    let binary_path = std::fs::canonicalize(binary_path)?;
+
+    let hide_system_dlls = matches.is_present("HIDE_SYS_DLLS");
+
     let mut query = LookupQuery::deduce_from_executable_location(binary_path)?;
 
-    if let Some(overridden_sysdir) = matches.value_of("SYSDIR") {
-        query.system.sys_dir = std::fs::canonicalize(overridden_sysdir)?;
+    if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
+        query.system = WindowsSystem::from_root(overridden_sysdir);
     } else {
         if verbose {
-            println!("System32 directory not specified, assumed {}", path_to_string(&query.system.sys_dir));
-        }
-    }
-    if let Some(overridden_windir) = matches.value_of("WINDIR") {
-        query.system.win_dir = std::fs::canonicalize(overridden_windir)?;
-        if verbose {
-            println!("Windows directory not specified, assumed {}", path_to_string(&query.system.win_dir));
+            if let Some(system) = &query.system {
+                println!(
+                    "Windows partition root not specified, assumed {}",
+                    path_to_string(&system.sys_dir)
+                );
+            } else {
+                println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
+            }
         }
     }
 
@@ -78,13 +75,23 @@ fn main() -> anyhow::Result<()> {
     for e in sorted_executables.iter().skip(1) {
         if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && hide_system_dlls) {
             if e.found {
-                println!("{}{} => {}", &prefix, &e.dllname,
-                         decanonicalize(&path_to_string(e.details.as_ref().map(|d| &d.full_path).unwrap())));
+                println!(
+                    "{}{} => {}",
+                    &prefix,
+                    &e.dllname,
+                    decanonicalize(&path_to_string(
+                        e.details.as_ref().map(|d| &d.full_path).unwrap()
+                    ))
+                );
             } else {
                 println!(
                     "{}{} => not found",
                     &prefix,
-                    e.details.as_ref().map(|d| readable_canonical_path(&d.full_path).ok()).flatten().unwrap_or(format!("{:?}", e.dllname))
+                    e.details
+                        .as_ref()
+                        .map(|d| readable_canonical_path(&d.full_path).ok())
+                        .flatten()
+                        .unwrap_or(format!("{:?}", e.dllname))
                 );
             }
         }

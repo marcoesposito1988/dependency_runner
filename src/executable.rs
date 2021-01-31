@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use serde::Serialize;
-use std::collections::{HashSet, HashMap};
 use crate::{LookupError, LookupQuery};
+use serde::Serialize;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 /// Information about a DLL that was mentioned as target for the search
 #[derive(Debug, Clone, Serialize)]
@@ -103,15 +103,22 @@ impl Executables {
         if self.index.is_empty() {
             return Ok(None);
         }
-        let root_candidates: Vec<&Executable> = self.index.values().filter(|v| v.depth_first_appearance == 0).collect();
+        let root_candidates: Vec<&Executable> = self
+            .index
+            .values()
+            .filter(|v| v.depth_first_appearance == 0)
+            .collect();
         if root_candidates.is_empty() {
-            return Err(LookupError::ScanError(format!("The executable tree has no roots")));
+            return Err(LookupError::ScanError(format!(
+                "The executable tree has no roots"
+            )));
         }
         if root_candidates.len() > 1 {
             let names: Vec<&str> = root_candidates.iter().map(|n| n.dllname.as_ref()).collect();
             return Err(LookupError::ScanError(format!(
                 "The executable tree has multiple roots: {}",
-                names.join(";"))));
+                names.join(";")
+            )));
         }
         Ok(root_candidates.first().map(|&e| e))
     }
@@ -144,16 +151,34 @@ impl Executables {
     }
 
     fn check_imports(&self, name: &str) -> Result<ExecutablesCheckReport, LookupError> {
-        let exe = self.get(name).ok_or(LookupError::ScanError(format!("Could not find file {}", name)))?;
+        let exe = self.get(name).ok_or(LookupError::ScanError(format!(
+            "Could not find file {}",
+            name
+        )))?;
 
-        if exe.details.as_ref().map(|d| d.is_api_set || d.is_system).unwrap_or(true) {
+        if exe
+            .details
+            .as_ref()
+            .map(|d| d.is_api_set || d.is_system)
+            .unwrap_or(true)
+        {
             // TODO: shoulnd't even get here
             return Ok(ExecutablesCheckReport::new());
         }
 
-        let imported_symbols = &exe.details.as_ref()
-            .ok_or(LookupError::ScanError(format!("Could not find details for file {}", name)))?
-            .symbols.as_ref().ok_or(LookupError::ScanError(format!("Could not find symbols for file {}", name)))?
+        let imported_symbols = &exe
+            .details
+            .as_ref()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not find details for file {}",
+                name
+            )))?
+            .symbols
+            .as_ref()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not find symbols for file {}",
+                name
+            )))?
             .imported;
 
         let mut missing_imports = ExecutablesCheckReport::new();
@@ -162,12 +187,21 @@ impl Executables {
             if let Some(dll_exe) = self.get(&dll_name) {
                 // TODO: following should distinguish if not found (in case report missing library), or if system/api set
                 if dll_exe.found {
-                    if !dll_exe.details.as_ref().map(|d| d.is_system).unwrap_or(true) {
+                    if !dll_exe
+                        .details
+                        .as_ref()
+                        .map(|d| d.is_system)
+                        .unwrap_or(true)
+                    {
                         let res = self.check_symbols(name, &dll_name)?;
                         missing_imports.extend(res);
                     }
                 } else {
-                    missing_imports.not_found_libraries.entry(name.to_owned()).or_default().insert(dll_name.clone());
+                    missing_imports
+                        .not_found_libraries
+                        .entry(name.to_owned())
+                        .or_default()
+                        .insert(dll_name.clone());
                 }
             } else {
                 // TODO: it was not looked up
@@ -177,19 +211,54 @@ impl Executables {
         Ok(missing_imports)
     }
 
-    fn check_symbols(&self, importer: &str, exporter: &str) -> Result<ExecutablesCheckReport, LookupError> {
-        let exe = self.get(importer).ok_or(LookupError::ScanError(format!("Could not find file {}", importer)))?;
-        let imported_symbols = &exe.details.as_ref()
-            .ok_or(LookupError::ScanError(format!("Could not find details for file {}", importer)))?
-            .symbols.as_ref().ok_or(LookupError::ScanError(format!("Could not find symbols for file {}", importer)))?
+    fn check_symbols(
+        &self,
+        importer: &str,
+        exporter: &str,
+    ) -> Result<ExecutablesCheckReport, LookupError> {
+        let exe = self.get(importer).ok_or(LookupError::ScanError(format!(
+            "Could not find file {}",
+            importer
+        )))?;
+        let imported_symbols = &exe
+            .details
+            .as_ref()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not find details for file {}",
+                importer
+            )))?
+            .symbols
+            .as_ref()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not find symbols for file {}",
+                importer
+            )))?
             .imported;
-        let imported_symbols_this_dep = imported_symbols.get(exporter)
-            .ok_or(LookupError::ScanError(format!("Could not find list of symbols imported by {} from {}", importer, exporter)))?;
+        let imported_symbols_this_dep =
+            imported_symbols
+                .get(exporter)
+                .ok_or(LookupError::ScanError(format!(
+                    "Could not find list of symbols imported by {} from {}",
+                    importer, exporter
+                )))?;
 
-        let dep_exe = self.get(exporter).ok_or(LookupError::ScanError(format!("Could not find file {}", exporter)))?;
-        let exported_symbols = &dep_exe.details.as_ref()
-            .ok_or(LookupError::ScanError(format!("Could not find details for file {}", exporter)))?
-            .symbols.as_ref().ok_or(LookupError::ScanError(format!("Could not find symbols for file {}", exporter)))?
+        let dep_exe = self.get(exporter).ok_or(LookupError::ScanError(format!(
+            "Could not find file {}",
+            exporter
+        )))?;
+        let exported_symbols = &dep_exe
+            .details
+            .as_ref()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not find details for file {}",
+                exporter
+            )))?
+            .symbols
+            .as_ref()
+            .ok_or(LookupError::ScanError(format!(
+                "Could not find symbols for file {}",
+                exporter
+            )))?
             .exported;
 
         let mut missing_symbols: HashSet<String> = HashSet::new();
@@ -203,7 +272,16 @@ impl Executables {
         let not_found_symbols = if missing_symbols.is_empty() {
             None
         } else {
-            Some(vec![ (importer.to_owned(), vec![ (exporter.to_owned(), missing_symbols) ].into_iter().collect()) ].into_iter().collect())
+            Some(
+                vec![(
+                    importer.to_owned(),
+                    vec![(exporter.to_owned(), missing_symbols)]
+                        .into_iter()
+                        .collect(),
+                )]
+                .into_iter()
+                .collect(),
+            )
         };
 
         Ok(ExecutablesCheckReport {
@@ -215,20 +293,23 @@ impl Executables {
 
 #[cfg(test)]
 mod tests {
-    use crate::{LookupError, Executables};
-    use crate::query::LookupQuery;
     use crate::lookup_path::LookupPath;
+    use crate::query::LookupQuery;
     use crate::runner::Runner;
+    use crate::{Executables, LookupError};
     use std::collections::HashSet;
     use std::iter::FromIterator;
-    use std::ffi::OsStr;
 
     #[test]
     fn empty_executables() -> Result<(), LookupError> {
-        let exes = Executables::new();
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path =
+            d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+        let q = LookupQuery::deduce_from_executable_location(&exe_path)?;
+        let exes = Executables::new(q);
         assert!(!exes.contains("NonExistingExecutable.exe"));
 
-        assert!(exes.get("NonExistingExecutable.exe")).is_none();
+        assert!(exes.get("NonExistingExecutable.exe").is_none());
 
         assert!(exes.get_root()?.is_none());
 
@@ -240,7 +321,8 @@ mod tests {
     #[test]
     fn executables() -> Result<(), LookupError> {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let exe_path = d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+        let exe_path =
+            d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
 
         let mut query = LookupQuery::deduce_from_executable_location(&exe_path)?;
         query.skip_system_dlls = true;
@@ -255,19 +337,26 @@ mod tests {
         assert!(exes.get("NonExistingExecutable.exe").is_none());
         assert!(exes.get("DepRunTest.exe").is_some());
 
-        assert_eq!(exes.get_root()?.unwrap().name, "DepRunTest.exe");
+        assert_eq!(exes.get_root()?.unwrap().dllname, "DepRunTest.exe");
 
         let sorted = exes.sorted_by_first_appearance();
-        let sorted_names: HashSet<&str> = sorted.iter()
+        let sorted_names: HashSet<&str> = sorted
+            .iter()
             .filter(|e| e.details.as_ref().map(|d| !d.is_system).unwrap_or(false))
-            .map(|e| e.name.to_str().unwrap()).collect();
-        let expected_names: HashSet<&str> = HashSet::from_iter(
-            ["DepRunTestLib.dll", "DepRunTest.exe", ].iter().map(|&s| s));
+            .map(|e| e.dllname.as_ref())
+            .collect();
+        let expected_names: HashSet<&str> =
+            HashSet::from_iter(["DepRunTestLib.dll", "DepRunTest.exe"].iter().map(|&s| s));
         assert_eq!(sorted_names, expected_names);
 
-        let exe_p = exes.get_root()?.unwrap().full_path();
-        assert!(exe_p.is_some());
-        assert_eq!(exe_p.unwrap(), std::fs::canonicalize(exe_path)?);
+        let exe_p = &exes
+            .get_root()?
+            .unwrap()
+            .details
+            .as_ref()
+            .unwrap()
+            .full_path;
+        assert_eq!(exe_p, &std::fs::canonicalize(exe_path)?);
 
         Ok(())
     }
