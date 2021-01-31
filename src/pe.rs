@@ -1,21 +1,26 @@
-use std::path::Path;
+extern crate thiserror;
+
 use crate::LookupError;
 use pelite::pe64::{Pe, PeFile};
 
-/// read the names of the DLLs this executable depends on
-pub fn read_dependencies<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Vec<String>, LookupError> {
-    use LookupError::{CouldNotOpenFile, ProcessingError};
-    let map = pelite::FileMap::open(path.as_ref()).map_err(|e| CouldNotOpenFile { source: e })?;
-    let file = PeFile::from_bytes(&map).map_err(|e| ProcessingError { source: e })?;
+use std::collections::{HashMap, HashSet};
 
+
+pub fn read_dll_name(file: &PeFile) -> Result<String, LookupError> {
+    Ok(file.exports()?.dll_name()?.to_string())
+}
+
+/// read the names of the DLLs this executable depends on
+pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
     // Access the import directory
-    let imports = file.imports().map_err(|e| ProcessingError { source: e })?;
+    let imports = file.imports().map_err(|e| LookupError::ProcessingError { source: e })?;
 
     let names: Vec<&pelite::util::CStr> = imports
         .iter()
         .map(|desc| desc.dll_name())
         .collect::<Result<Vec<&pelite::util::CStr>, pelite::Error>>()
-        .map_err(|e| ProcessingError { source: e })?;
+        .map_err(|e| LookupError::ProcessingError { source: e })?;
+
     Ok(names
         .iter()
         .filter_map(|s| s.to_str().ok())
@@ -23,7 +28,48 @@ pub fn read_dependencies<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Vec<String
         .collect::<Vec<String>>())
 }
 
+pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<String>>, LookupError> {
+    use LookupError::ProcessingError;
+    // Access the import directory
+    let imports = file.imports().map_err(|e| ProcessingError { source: e })?;
 
+    let mut ret = HashMap::new();
+
+    use pelite::pe32::imports::Import;
+
+    for desc in imports.iter() {
+        // Import Address Table and Import Name Table for this imported DLL
+        let dllname = desc.dll_name()?;
+        let importednames: HashSet<_> = desc
+            .int()?
+            .flat_map(|imp| match imp {
+                Ok(Import::ByName { hint: _, name }) => Ok(name.to_string()),
+                Ok(Import::ByOrdinal { ord: _ }) => {
+                    // println!("by ordinal");
+                    Ok("".to_owned()) // TODO apparently we can't check much here...
+                }
+                Err(err) => {
+                    eprintln!("Error parsing import: {}", err);
+                    Err(err)
+                }
+            })
+            .collect();
+
+        ret.insert(dllname.to_str()?.to_owned(), importednames);
+    }
+
+    Ok(ret)
+}
+
+pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError> {
+    // To query the exports
+    let by = file.exports()?.by()?;
+
+    Ok(by
+        .iter_names()
+        .map(|(name, _)| name.unwrap().to_str().unwrap().to_owned())
+        .collect())
+}
 
 #[cfg(test)]
 mod tests {

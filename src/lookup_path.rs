@@ -28,6 +28,7 @@ impl LookupPathEntry {
         [
             LookupPathEntryType::WindowsDir,
             LookupPathEntryType::SystemDir,
+            LookupPathEntryType::ApiSet,
             // ContextEntryType::SystemDir16,
         ]
         .contains(&self.dir_type)
@@ -58,6 +59,7 @@ impl LookupPath {
                     path: query.system.sys_dir.clone(),
                 },
                 // TODO: we should resolve API sets properly as in https://lucasg.github.io/2017/10/15/Api-set-resolution/
+                // TODO investigate https://github.com/CasualX/pelite/blob/master/examples/apisetschema/main.rs
                 // for now, we just add the /downlevel directory and call it a day
                 LookupPathEntry {
                     dir_type: LookupPathEntryType::ApiSet,
@@ -91,6 +93,7 @@ impl LookupPath {
                     path: query.system.sys_dir.clone(),
                 },
                 // TODO: we should resolve API sets properly as in https://lucasg.github.io/2017/10/15/Api-set-resolution/
+                // investigate https://github.com/CasualX/pelite/blob/master/examples/apisetschema/main.rs
                 // for now, we just add the /downlevel directory and call it a day
                 LookupPathEntry {
                     dir_type: LookupPathEntryType::SystemDir,

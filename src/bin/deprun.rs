@@ -10,7 +10,6 @@ use dependency_runner::LookupError;
 use anyhow::Context;
 use clap::{value_t, App, Arg};
 use std::path::PathBuf;
-use std::ffi::OsString;
 
 #[cfg(windows)]
 fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_path: &str) -> Result<String, LookupError> {
@@ -40,27 +39,26 @@ fn pick_configuration(configs: &Vec<&String>, user_config: &Option<&str>, file_p
 
 fn visit_depth_first(e: &Executable, current_depth: usize, exes: &Executables, query: &LookupQuery, print_system_dlls: bool) {
     if query.max_depth.map(|d| current_depth < d).unwrap_or(true) {
-        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false)
-            && !print_system_dlls)
+        if !(e.details.as_ref().map(|d| d.is_api_set).unwrap_or(false) || (e.details.as_ref().map(|d| d.is_system).unwrap_or(false)
+            && !print_system_dlls))
         {
             let folder = if !e.found {
                 "not found".to_owned()
             } else {
                 if let Some(details) = &e.details {
-                    readable_canonical_path(&details.folder).unwrap_or("INVALID".to_owned())
+                    readable_canonical_path(&details.full_path.parent().unwrap()).unwrap_or("INVALID".to_owned())
                 } else {
                     "not searched".to_owned()
                 }
             };
-            println!("{}{} => {}", "\t".repeat(current_depth), e.name.to_str().unwrap(), folder);
+            println!("{}{} => {}", "\t".repeat(current_depth), e.dllname, folder);
 
             if let Some(details) = &e.details {
                 if !details.is_system {
                     // TODO: may be feasible with api set resolution
                     if let Some(dependencies) = &details.dependencies {
                         for d in dependencies {
-                            if let Some(de) = exes.get(&OsString::from(&d)){
-
+                            if let Some(de) = exes.get(&d){
                                 visit_depth_first(de, current_depth+1, exes, query, print_system_dlls);
                             }
                         }
@@ -110,6 +108,12 @@ fn main() -> anyhow::Result<()> {
                 .long("print-system-dlls")
                 .takes_value(false)
                 .help("Include system DLLs in the output"),
+        )
+        .arg(
+            Arg::with_name("CHECK_SYMBOLS")
+                .long("check-symbols")
+                .takes_value(false)
+                .help("Check that all imported symbols are found within the (non-system) dependencies"),
         );
 
     let args = {
@@ -214,6 +218,8 @@ fn main() -> anyhow::Result<()> {
 
     let print_system_dlls = matches.is_present("PRINT_SYS_DLLS");
 
+    let check_symbols = matches.is_present("CHECK_SYMBOLS");
+
     if !binary_path.exists() {
         eprintln!("Specified file not found at {:?}", binary_path);
         std::process::exit(1);
@@ -257,6 +263,8 @@ fn main() -> anyhow::Result<()> {
     if let Ok(max_depth) = value_t!(matches.value_of("MAX_DEPTH"), usize) {
         query.max_depth = Some(max_depth);
     }
+
+    query.extract_symbols = check_symbols;
 
     #[cfg(not(windows))]
         let context = dependency_runner::lookup_path::LookupPath::new(&query);
@@ -369,6 +377,52 @@ fn main() -> anyhow::Result<()> {
     // printing depth-first
     if let Some(root)  = executables.get_root()? {
         visit_depth_first(root, 0, &executables, &query, print_system_dlls);
+    }
+
+    if check_symbols {
+        println!("\nChecking symbols...\n");
+
+        let sym_check = executables.check();
+        match sym_check {
+            Ok(report) => {
+                if !report.not_found_libraries.is_empty() {
+
+                    println!("Missing libraries detected!");
+                    println!("[Importing executable, missing dependencies]\n");
+                    for (importer, missing_dependencies) in report.not_found_libraries.iter() {
+                        if !missing_dependencies.is_empty() {
+                            println!("\t{}", importer);
+                            for missing_import_dll in missing_dependencies {
+                                println!("\t\t{}", missing_import_dll);
+                            }
+                        }
+                    }
+                    println!();
+                } else  {
+                    println!("No missing libraries detected");
+                }
+
+                if let Some(missing_symbols) = report.not_found_symbols {
+
+                    println!("Missing symbols detected!");
+                    println!("[Importing executable, exporting executable, missing symbols]\n");
+                    for (filename, missing_imports) in missing_symbols.iter() {
+                        if !missing_imports.is_empty() {
+                            println!("\t{}", filename);
+                            for (missing_import_dll, missing_symbols) in missing_imports {
+                                println!("\t\t{}", missing_import_dll);
+                                for missing_symbol in missing_symbols {
+                                    println!("\t\t\t{}", missing_symbol);
+                                }
+                            }
+                        }
+                    }
+                } else  {
+                    println!("No missing symbols detected");
+                }
+            }
+            Err(sym_check_error) => println!("{:?}", sym_check_error),
+        }
     }
 
     // JSON representation

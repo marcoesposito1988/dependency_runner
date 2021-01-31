@@ -5,7 +5,7 @@ use crate::vcx::{VcxDebuggingConfiguration, VcxExecutableInformation};
 use std::path::{Path, PathBuf};
 
 /// Complete specification of a search task
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LookupQuery {
     pub system: WindowsSystem,
     /// Path to the target executable
@@ -18,6 +18,8 @@ pub struct LookupQuery {
     pub max_depth: Option<usize>,
     /// Skip searching dependencies of DLLs found in system directories
     pub skip_system_dlls: bool,
+    /// Extract symbols from found DLLs
+    pub extract_symbols: bool,
 }
 
 impl LookupQuery {
@@ -42,6 +44,7 @@ impl LookupQuery {
             working_dir: app_dir.canonicalize()?,
             max_depth: None,
             skip_system_dlls: false,
+            extract_symbols: false,
         })
     }
 
@@ -110,6 +113,7 @@ impl LookupQuery {
             working_dir: app_dir.to_owned(),
             max_depth: None,
             skip_system_dlls: true,
+            extract_symbols: false,
         };
 
         if let Some(debugging_config) = &exe_info.debugging_configuration {

@@ -2,7 +2,7 @@ extern crate dependency_runner;
 
 use clap::{App, Arg};
 
-use dependency_runner::{path_to_string, osstring_to_string, decanonicalize};
+use dependency_runner::{path_to_string, decanonicalize, readable_canonical_path};
 use dependency_runner::{lookup, LookupPath, Executable, LookupQuery};
 
 fn main() -> anyhow::Result<()> {
@@ -78,13 +78,13 @@ fn main() -> anyhow::Result<()> {
     for e in sorted_executables.iter().skip(1) {
         if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && hide_system_dlls) {
             if e.found {
-                println!("{}{} => {}", &prefix, osstring_to_string(&e.name),
-                         decanonicalize(&path_to_string(e.full_path().unwrap())));
+                println!("{}{} => {}", &prefix, &e.dllname,
+                         decanonicalize(&path_to_string(e.details.as_ref().map(|d| &d.full_path).unwrap())));
             } else {
                 println!(
                     "{}{} => not found",
                     &prefix,
-                    e.name.to_str().unwrap_or(format!("{:?}", e.name).as_ref())
+                    e.details.as_ref().map(|d| readable_canonical_path(&d.full_path).ok()).flatten().unwrap_or(format!("{:?}", e.dllname))
                 );
             }
         }
