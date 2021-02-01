@@ -148,10 +148,10 @@ impl WinFileSystemCache {
         }
     }
 
-    pub(crate) fn test_file_in_folder_case_insensitive<P: AsRef<Path>>(
+    pub(crate) fn test_file_in_folder_case_insensitive<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
         filename: P,
-        folder: P,
+        folder: Q,
     ) -> Result<Option<PathBuf>, LookupError> {
         let folder_str: String = folder
             .as_ref()
@@ -220,7 +220,7 @@ mod tests {
         // assert_eq!(ctx.safe_dll_search_mode_on, Some(true));
 
         // this changes from computer to computer, but we should get something
-        let user_path = ctx.path;
+        let user_path = ctx.system_path;
         assert!(user_path.is_some());
         assert!(user_path
             .unwrap()
@@ -230,20 +230,24 @@ mod tests {
 
     #[test]
     fn fscache() -> Result<(), LookupError> {
-        let mut fscache = WinFileSystemCache::new();
-        let test_file_path = std::fs::canonicalize("C:\\Windows\\win.ini")?;
-        let expected_res = Some(PathBuf::from("win.ini"));
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let test_file_path =
+            d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
         assert!(test_file_path.exists());
+        let folder = test_file_path.parent().unwrap();
+
+        let mut fscache = WinFileSystemCache::new();
+        let expected_res = Some(PathBuf::from("DepRunTest.exe"));
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("win.ini", "C:\\Windows")?,
+            fscache.test_file_in_folder_case_insensitive("depruntest.exe", folder)?,
             expected_res
         );
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("Win.ini", "C:\\Windows")?,
+            fscache.test_file_in_folder_case_insensitive("Depruntest.exe", folder)?,
             expected_res
         );
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", "C:\\Windows")?,
+            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", folder)?,
             None
         );
         Ok(())

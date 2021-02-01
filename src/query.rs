@@ -72,7 +72,7 @@ impl LookupQuery {
             app_dir: app_dir.to_owned(),
             working_dir: app_dir.to_owned(),
             max_depth: None,
-            skip_system_dlls: true,
+            skip_system_dlls: false,
             extract_symbols: false,
         })
     }
@@ -118,7 +118,7 @@ impl LookupQuery {
             app_dir: app_dir.to_owned(),
             working_dir: app_dir.to_owned(),
             max_depth: None,
-            skip_system_dlls: true,
+            skip_system_dlls: false,
             extract_symbols: false,
         };
 
@@ -157,7 +157,7 @@ mod tests {
         #[cfg(windows)]
         {
             use crate::system::WindowsSystem;
-            assert_eq!(&query.system, &WindowsSystem::current()?);
+            assert_eq!(&query.system.unwrap(), &WindowsSystem::current()?);
         }
 
         Ok(())

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use crate::readable_canonical_path;
 use crate::LookupError;
 use std::path::PathBuf;
-use crate::readable_canonical_path;
 
 // Parsing of Visual Studio files
 
@@ -103,9 +103,7 @@ fn extract_debugging_configuration_from_config_node(
 // Extracted properties:
 // - PATH variable (in the <LocalDebuggerEnvironment> property)
 // - working directory (value of the <LocalDebuggerWorkingDirectory> property)
-pub fn parse_vcxproj_user<
-    P: AsRef<std::path::Path> + ?Sized,
->(
+pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
     p: &P,
 ) -> anyhow::Result<HashMap<String, VcxDebuggingConfiguration>> {
     let filecontent = std::fs::read_to_string(p)?;
@@ -138,13 +136,12 @@ pub fn parse_vcxproj_user<
 #[derive(Debug)]
 pub struct VcxExecutableInformation {
     pub configuration: String,
-    pub executable_path: String,
+    pub executable_path: PathBuf,
     pub debugging_configuration: Option<VcxDebuggingConfiguration>,
 }
 
 fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
-    root
-        .descendants()
+    root.descendants()
         .filter(|n: &roxmltree::Node| n.has_tag_name(tag))
         .map(|n| {
             if let Some(od) = n.text() {
@@ -164,16 +161,18 @@ fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
 // Extracted properties:
 // - output executable path (composed of <OutDir>, <TargetName>, <TargetExt>)
 // - debugging information, if the respective .vcxproj.user is found next to the .vcxproj
-pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>
-(p: &P) -> anyhow::Result<HashMap<String, VcxExecutableInformation>> {
+pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>(
+    p: &P,
+) -> anyhow::Result<HashMap<String, VcxExecutableInformation>> {
     let filecontent = std::fs::read_to_string(p)?;
     let doc = roxmltree::Document::parse(&filecontent)?;
     let project_node = doc
         .descendants()
         .find(|n| n.has_tag_name("Project"))
-        .ok_or(LookupError::ParseError(
-            format!("Failed to find <Project> tag in file {}", readable_canonical_path(p.as_ref())?),
-        ))?;
+        .ok_or(LookupError::ParseError(format!(
+            "Failed to find <Project> tag in file {}",
+            readable_canonical_path(p.as_ref())?
+        )))?;
 
     // extract the file path the config refers to (outdir + target name + extension)
     let outdir_per_config = extract_tag(&project_node, "OutDir");
@@ -190,16 +189,13 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>
                 &targetname_per_config[c],
                 &targetext_per_config[c],
             );
-            // TODO: fix handling of win path from linux
-            if let Some(full_path) = std::path::Path::new(e_dir)
-                .join(e_name.to_owned() + e_ext)
-                .to_str()
-            {
+            // the following assumes that parent_dir ends with a backslash
+            if let Some(parent_dir) = std::path::Path::new(e_dir).to_str() {
                 Ok((
                     c.clone(),
                     VcxExecutableInformation {
                         configuration: c.clone(),
-                        executable_path: full_path.to_owned(),
+                        executable_path: PathBuf::from(parent_dir.to_owned() + e_name + e_ext),
                         debugging_configuration: None,
                     },
                 ))
@@ -218,7 +214,8 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>
             vcxuser_filename.push(".user");
             let vcxproj_user_path = parent_dir.join(vcxuser_filename);
             if vcxproj_user_path.exists() {
-                if let Ok(debugging_configuration_per_config) = parse_vcxproj_user(&vcxproj_user_path)
+                if let Ok(debugging_configuration_per_config) =
+                    parse_vcxproj_user(&vcxproj_user_path)
                 {
                     for (c, dc) in debugging_configuration_per_config {
                         if let Some(outdir) = executable_info_per_config.get_mut(&c) {
@@ -233,7 +230,6 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>
     Ok(executable_info_per_config)
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::LookupError;
@@ -242,29 +238,45 @@ mod tests {
     fn vcxproj() -> Result<(), LookupError> {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-        let vcxproj_path = d.join("test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/DepRunTest.vcxproj");
+        let vcxproj_path = d.join(
+            "test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/DepRunTest.vcxproj",
+        );
         let p = super::parse_vcxproj(&vcxproj_path)?;
 
         let mut config: Vec<&String> = p.keys().collect();
         config.sort();
-        assert_eq!(config, vec!["Debug", "MinSizeRel", "RelWithDebInfo", "Release"]);
+        assert_eq!(
+            config,
+            vec!["Debug", "MinSizeRel", "RelWithDebInfo", "Release"]
+        );
 
         let debug_exe_info = &p["Debug"];
 
-        let expected_exe_path = d.to_str().unwrap().to_owned() +
-            r"\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTest\Debug\DepRunTest.exe";
-        assert_eq!(&debug_exe_info.executable_path, &expected_exe_path);
+        assert!(&debug_exe_info.executable_path.to_str().unwrap()
+            .ends_with(r"\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTest\Debug\DepRunTest.exe"));
 
         assert!(debug_exe_info.debugging_configuration.is_some());
         let deb_config = debug_exe_info.debugging_configuration.as_ref().unwrap();
 
         assert_eq!(deb_config.configuration, "Debug");
 
-        let workdir = d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug");
-        assert_eq!(deb_config.working_directory, Some(workdir));
+        assert!(deb_config.working_directory.is_some());
+        assert!(deb_config
+            .working_directory
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(
+                r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
+            ));
 
-        let expected_path = vec![ d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug")];
-        assert_eq!(deb_config.path, Some(expected_path));
+        assert!(deb_config.path.is_some());
+        let p = deb_config.path.as_ref().unwrap();
+        assert_eq!(p.len(), 1);
+        assert!(p.first().unwrap().to_str().unwrap().ends_with(
+            r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
+        ));
 
         Ok(())
     }
@@ -273,18 +285,22 @@ mod tests {
     fn vcxproj_no_user() -> Result<(), LookupError> {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-        let vcxproj_path = d.join("test_data/test_project1/DepRunTest/build/DepRunTest/DepRunTest.vcxproj");
+        let vcxproj_path =
+            d.join("test_data/test_project1/DepRunTest/build/DepRunTest/DepRunTest.vcxproj");
         let p = super::parse_vcxproj(&vcxproj_path)?;
 
         let mut config: Vec<&String> = p.keys().collect();
         config.sort();
-        assert_eq!(config, vec!["Debug", "MinSizeRel", "RelWithDebInfo", "Release"]);
+        assert_eq!(
+            config,
+            vec!["Debug", "MinSizeRel", "RelWithDebInfo", "Release"]
+        );
 
         let debug_exe_info = &p["Debug"];
 
-        let expected_exe_path = d.to_str().unwrap().to_owned() +
-            r"\test_data\test_project1\DepRunTest\build\DepRunTest\Debug\DepRunTest.exe";
-        assert_eq!(&debug_exe_info.executable_path, &expected_exe_path);
+        assert!(&debug_exe_info.executable_path.to_str().unwrap().ends_with(
+            r"\test_data\test_project1\DepRunTest\build\DepRunTest\Debug\DepRunTest.exe"
+        ));
 
         assert!(debug_exe_info.debugging_configuration.is_none());
 
@@ -306,11 +322,22 @@ mod tests {
 
         assert_eq!(deb_config.configuration, "Debug");
 
-        let workdir = d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug");
-        assert_eq!(deb_config.working_directory, Some(workdir));
+        assert!(deb_config
+            .working_directory
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(
+                r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
+            ));
 
-        let expected_path = vec![ d.join(r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug")];
-        assert_eq!(deb_config.path, Some(expected_path));
+        assert!(deb_config.path.is_some());
+        let p = deb_config.path.as_ref().unwrap();
+        assert_eq!(p.len(), 1);
+        assert!(p.first().unwrap().to_str().unwrap().ends_with(
+            r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
+        ));
 
         Ok(())
     }

@@ -249,7 +249,7 @@ impl LookupPath {
             if let Ok(found) = self
                 .fs_cache
                 .borrow_mut()
-                .test_file_in_folder_case_insensitive(filename, e.path.as_ref())
+                .test_file_in_folder_case_insensitive(filename, &e.path)
             {
                 if let Some(actual_filename) = found {
                     let mut p = std::path::PathBuf::new();
