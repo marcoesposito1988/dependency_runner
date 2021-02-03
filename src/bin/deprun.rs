@@ -220,8 +220,9 @@ fn main() -> anyhow::Result<()> {
 
     if !binary_path.exists() {
         eprintln!(
-            "Specified file not found at {}",
-            binary_path.to_str().unwrap()
+            "Specified file not found at {}\nCurrent working directory: {}",
+            binary_path.to_str().unwrap(),
+            std::env::current_dir()?.to_str().unwrap(),
         );
         std::process::exit(1);
     }
@@ -383,6 +384,7 @@ fn main() -> anyhow::Result<()> {
     // }
 
     // printing depth-first
+    println!();
     if let Some(root) = executables.get_root()? {
         visit_depth_first(root, 0, &executables, &query, print_system_dlls);
     }
@@ -398,9 +400,9 @@ fn main() -> anyhow::Result<()> {
                     println!("[Importing executable, missing dependencies]\n");
                     for (importer, missing_dependencies) in report.not_found_libraries.iter() {
                         if !missing_dependencies.is_empty() {
-                            println!("\t{}", importer);
+                            println!("{}", importer);
                             for missing_import_dll in missing_dependencies {
-                                println!("\t\t{}", missing_import_dll);
+                                println!("\t{}", missing_import_dll);
                             }
                         }
                     }
@@ -410,16 +412,16 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 if let Some(missing_symbols) = report.not_found_symbols {
-                    println!("Missing symbols detected!");
+                    println!("\nMissing symbols detected!");
                     println!("[Importing executable, exporting executable, missing symbols]\n");
                     for (filename, missing_imports) in missing_symbols.iter() {
                         if !missing_imports.is_empty() {
-                            println!("\t{}", filename);
+                            println!("{}", filename);
                             for (missing_import_dll, missing_symbols) in missing_imports {
-                                println!("\t\t{}", missing_import_dll);
+                                println!("\t{}", missing_import_dll);
                                 for missing_symbol in missing_symbols {
                                     println!(
-                                        "\t\t\t{}",
+                                        "\t\t{}",
                                         demangle_symbol(missing_symbol)
                                             .as_ref()
                                             .unwrap_or(missing_symbol)
