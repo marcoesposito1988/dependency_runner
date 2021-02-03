@@ -65,7 +65,13 @@ pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<Stri
 
 pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError> {
     // To query the exports
-    let by = file.exports()?.by()?;
+    let exports = match file.exports() {
+        Ok(exports) => exports,
+        // there is no export directory, e.g. in case of an executable
+        Err(pelite::Error::Null) => return Ok(HashSet::new()),
+        Err(e) => return Err(LookupError::PEError(e)),
+    };
+    let by = exports.by()?;
 
     Ok(by
         .iter_names()
