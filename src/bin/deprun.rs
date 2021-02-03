@@ -141,8 +141,8 @@ fn main() -> anyhow::Result<()> {
 
     let args = {
         #[cfg(windows)]
-            {
-                args
+        {
+            args
                     .arg(
                         Arg::with_name("WORKDIR")
                             .short("k")
@@ -184,11 +184,11 @@ fn main() -> anyhow::Result<()> {
                             .takes_value(true)
                             .conflicts_with("DWP_FILE_PATH"),
                     )
-            }
+        }
 
         #[cfg(not(windows))]
-            {
-                args
+        {
+            args
                     .arg(Arg::with_name("Windows root")
                         .short("w")
                         .long("windows-root")
@@ -209,7 +209,7 @@ fn main() -> anyhow::Result<()> {
                             .help("Specify a user path")
                             .takes_value(true),
                     )
-            }
+        }
     };
 
     let matches = args.get_matches();
@@ -219,7 +219,10 @@ fn main() -> anyhow::Result<()> {
     let binary_path = PathBuf::from(matches.value_of("INPUT").unwrap());
 
     if !binary_path.exists() {
-        eprintln!("Specified file not found at {}", binary_path.to_str().unwrap());
+        eprintln!(
+            "Specified file not found at {}",
+            binary_path.to_str().unwrap()
+        );
         std::process::exit(1);
     }
 
@@ -230,10 +233,10 @@ fn main() -> anyhow::Result<()> {
     let check_symbols = matches.is_present("CHECK_SYMBOLS");
 
     #[cfg(not(windows))]
-        let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
+    let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
     #[cfg(windows)]
-        let mut query = if binary_path
+    let mut query = if binary_path
         .extension()
         .map(|e| e == "vcxproj")
         .unwrap_or(false)
@@ -276,16 +279,6 @@ fn main() -> anyhow::Result<()> {
 
     query.extract_symbols = check_symbols;
 
-    #[cfg(not(windows))]
-        let context = dependency_runner::lookup_path::LookupPath::new(&query);
-
-    #[cfg(windows)]
-        let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
-        dependency_runner::lookup_path::LookupPath::from_dwp_file(dwp_file_path, &query)?
-    } else {
-        dependency_runner::lookup_path::LookupPath::new(&query)
-    };
-
     // overrides (must be last)
 
     if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
@@ -322,16 +315,17 @@ fn main() -> anyhow::Result<()> {
     } else {
         if verbose {
             #[cfg(windows)]
-                {
-                    let decanonicalized_path: Vec<String> = query.user_path
-                        .iter()
-                        .map(|p| decanonicalize(p.to_str().unwrap()))
-                        .collect();
-                    println!(
-                        "User path not specified, taken that of current shell: {}",
-                        decanonicalized_path.join(", ")
-                    );
-                }
+            {
+                let decanonicalized_path: Vec<String> = query
+                    .user_path
+                    .iter()
+                    .map(|p| decanonicalize(p.to_str().unwrap()))
+                    .collect();
+                println!(
+                    "User path not specified, taken that of current shell: {}",
+                    decanonicalized_path.join(", ")
+                );
+            }
             #[cfg(not(windows))]
             println!("User path not specified, assumed: {:?}", query.user_path);
         }
@@ -350,6 +344,16 @@ fn main() -> anyhow::Result<()> {
             .collect();
         println!("Search path: {}\n", decanonicalized_path.join(", "));
     }
+
+    #[cfg(not(windows))]
+    let context = dependency_runner::lookup_path::LookupPath::new(&query);
+
+    #[cfg(windows)]
+    let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
+        dependency_runner::lookup_path::LookupPath::from_dwp_file(dwp_file_path, &query)?
+    } else {
+        dependency_runner::lookup_path::LookupPath::new(&query)
+    };
 
     let executables = lookup(&query, context)?;
 
