@@ -18,7 +18,7 @@ Missing symbols detected!
 
 DepRunTest.exe
 	DepRunTestLib.dll
-		public: float __cdecl TestClass::testMethod(int)
+		public: float TestClass::testMethod(int)
 
 ```
 

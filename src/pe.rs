@@ -80,7 +80,8 @@ pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError
 }
 
 pub fn demangle_symbol(symbol: &str) -> Result<String, LookupError> {
-    let flags = msvc_demangler::DemangleFlags::llvm();
+    let flags =
+        msvc_demangler::DemangleFlags::llvm() | msvc_demangler::DemangleFlags::NO_MS_KEYWORDS;
     msvc_demangler::demangle(symbol, flags)
         .map_err(|_| LookupError::DemanglingError(symbol.to_owned()))
 }
