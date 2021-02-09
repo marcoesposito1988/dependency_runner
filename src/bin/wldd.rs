@@ -39,7 +39,18 @@ fn main() -> anyhow::Result<()> {
     let binary_path = std::path::PathBuf::from(matches.value_of("INPUT").unwrap());
 
     if !binary_path.exists() {
-        eprintln!("Specified file not found at {}", binary_path.to_str().unwrap());
+        eprintln!(
+            "Specified file not found at {}",
+            binary_path.to_str().unwrap()
+        );
+        std::process::exit(1);
+    }
+
+    if binary_path.is_dir() {
+        eprintln!(
+            "The specified path is a directory, not a PE executable file: {}",
+            binary_path.to_str().unwrap(),
+        );
         std::process::exit(1);
     }
 

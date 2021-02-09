@@ -227,6 +227,14 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
+    if binary_path.is_dir() {
+        eprintln!(
+            "The specified path is a directory, not a PE executable file: {}",
+            binary_path.to_str().unwrap(),
+        );
+        std::process::exit(1);
+    }
+
     let binary_path = std::fs::canonicalize(binary_path)?;
 
     let print_system_dlls = matches.is_present("PRINT_SYS_DLLS");
