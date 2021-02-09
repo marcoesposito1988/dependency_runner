@@ -13,15 +13,13 @@ pub fn read_dll_name(file: &PeFile) -> Result<String, LookupError> {
 /// read the names of the DLLs this executable depends on
 pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
     // Access the import directory
-    let imports = file
-        .imports()
-        .map_err(|e| LookupError::ProcessingError { source: e })?;
+    let imports = file.imports().map_err(|e| LookupError::PEError(e))?;
 
     let names: Vec<&pelite::util::CStr> = imports
         .iter()
         .map(|desc| desc.dll_name())
         .collect::<Result<Vec<&pelite::util::CStr>, pelite::Error>>()
-        .map_err(|e| LookupError::ProcessingError { source: e })?;
+        .map_err(|e| LookupError::PEError(e))?;
 
     Ok(names
         .iter()
@@ -31,9 +29,9 @@ pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
 }
 
 pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<String>>, LookupError> {
-    use LookupError::ProcessingError;
+    use LookupError::PEError;
     // Access the import directory
-    let imports = file.imports().map_err(|e| ProcessingError { source: e })?;
+    let imports = file.imports().map_err(|e| PEError(e))?;
 
     let mut ret = HashMap::new();
 
@@ -97,10 +95,9 @@ mod tests {
         let cargo_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let exe_path = cargo_dir
             .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
-        let filemap = pelite::FileMap::open(&exe_path)
-            .map_err(|e| LookupError::CouldNotOpenFile { source: e })?;
-        let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
-            .map_err(|e| LookupError::ProcessingError { source: e })?;
+        let filemap = pelite::FileMap::open(&exe_path).map_err(|e| LookupError::IOError(e))?;
+        let pefile =
+            pelite::pe64::PeFile::from_bytes(&filemap).map_err(|e| LookupError::PEError(e))?;
 
         let expected_exe_deps: HashSet<String> = [
             "DepRunTestLib.dll",
@@ -124,10 +121,9 @@ mod tests {
             "test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTestLib.dll",
         );
 
-        let filemap = pelite::FileMap::open(&lib_path)
-            .map_err(|e| LookupError::CouldNotOpenFile { source: e })?;
-        let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
-            .map_err(|e| LookupError::ProcessingError { source: e })?;
+        let filemap = pelite::FileMap::open(&lib_path).map_err(|e| LookupError::IOError(e))?;
+        let pefile =
+            pelite::pe64::PeFile::from_bytes(&filemap).map_err(|e| LookupError::PEError(e))?;
 
         let expected_lib_deps: HashSet<String> = [
             "KERNEL32.dll",

@@ -4,22 +4,16 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum LookupError {
-    #[error("Read error")]
-    CouldNotOpenFile { source: std::io::Error },
-
-    #[error("PE file parse error")]
-    ProcessingError { source: pelite::Error },
-
-    #[error("File system access error while scanning")]
+    #[error("File system access error while scanning: {}", .0)]
     ScanError(String),
 
-    #[error("Visual Studio User settings file parse error")]
+    #[error("Visual Studio User settings file parse error: {}", .0)]
     ParseError(String),
 
-    #[error("Error trying to render a file path in readable form")]
+    #[error("Error trying to render a file path in readable form: {}", .0)]
     PathConversionError(String),
 
-    #[error("Lookup context building error")]
+    #[error("Lookup context building error: {}", .0)]
     ContextDeductionError(String),
 
     #[error("Could not demangle symbol")]

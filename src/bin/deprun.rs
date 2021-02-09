@@ -39,7 +39,7 @@ fn pick_configuration(
             Ok(single_config.to_owned().to_string())
         } else {
             return Err(LookupError::ContextDeductionError(format!(
-                "Must specify a configuration with vcx-config for project file {}\n\
+                "Must specify a configuration with --vcx-config=<CONFIG> for project file {}\n\
                 Available configurations: {:?}",
                 file_path, configs
             )));
@@ -268,12 +268,21 @@ fn main() -> anyhow::Result<()> {
     } else {
         let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
-        if let Some(vcxproj_user_path) = matches.value_of("VCXPROJ_USER_PATH") {
+        if let Some(vcxproj_user_path_str) = matches.value_of("VCXPROJ_USER_PATH") {
+            let vcxproj_user_path = std::path::Path::new(vcxproj_user_path_str);
+            if !vcxproj_user_path.exists() || vcxproj_user_path.is_dir() {
+                eprintln!(
+                    "Specified vcxproj.user file not found at {}",
+                    vcxproj_user_path_str,
+                );
+                std::process::exit(1);
+            }
+
             let vcx_debug_info_per_config = parse_vcxproj_user(&vcxproj_user_path)?;
             let config_to_use = pick_configuration(
                 &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
                 &matches.value_of("VCXPROJ_CONFIGURATION"),
-                vcxproj_user_path,
+                vcxproj_user_path_str,
             )?;
             let vcx_debug_info = &vcx_debug_info_per_config[&config_to_use];
 

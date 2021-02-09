@@ -93,10 +93,10 @@ impl Runner {
                     .search_file(OsStr::new(&lookup_query.dllname))
                     .unwrap_or(None)
                 {
-                    let filemap = pelite::FileMap::open(&r.fullpath)
-                        .map_err(|e| LookupError::CouldNotOpenFile { source: e })?;
+                    let filemap =
+                        pelite::FileMap::open(&r.fullpath).map_err(|e| LookupError::IOError(e))?;
                     let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
-                        .map_err(|e| LookupError::ProcessingError { source: e })?;
+                        .map_err(|e| LookupError::PEError(e))?;
 
                     let dllname =
                         pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
