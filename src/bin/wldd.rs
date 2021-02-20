@@ -2,8 +2,10 @@ extern crate dependency_runner;
 
 use clap::{App, Arg};
 
-use dependency_runner::{decanonicalize, path_to_string, readable_canonical_path};
-use dependency_runner::{lookup, Executable, LookupPath, LookupQuery, WindowsSystem};
+use dependency_runner::{
+    decanonicalize, lookup, path_to_string, readable_canonical_path, Executable, LookupPath,
+    LookupQuery, WindowsSystem,
+};
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")

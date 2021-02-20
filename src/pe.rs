@@ -6,6 +6,10 @@ use pelite::pe64::{Pe, PeFile};
 
 use std::collections::{HashMap, HashSet};
 
+/// Read the DLL name as specified in the PE file headers
+///
+/// This should match the dependency name specified in the import table of the file depending on
+/// this DLL
 pub fn read_dll_name(file: &PeFile) -> Result<String, LookupError> {
     Ok(file.exports()?.dll_name()?.to_string())
 }
@@ -28,6 +32,7 @@ pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
         .collect::<Vec<String>>())
 }
 
+/// Get the list of symbols imported by this file from each of its dependencies
 pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<String>>, LookupError> {
     use LookupError::PEError;
     // Access the import directory
@@ -61,6 +66,7 @@ pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<Stri
     Ok(ret)
 }
 
+/// Get the list of symbols exported by this DLL
 pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError> {
     // To query the exports
     let exports = match file.exports() {
@@ -77,6 +83,7 @@ pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError
         .collect())
 }
 
+/// Get a humanly-readable version of the (imported or exported) symbol
 pub fn demangle_symbol(symbol: &str) -> Result<String, LookupError> {
     let flags =
         msvc_demangler::DemangleFlags::llvm() | msvc_demangler::DemangleFlags::NO_MS_KEYWORDS;

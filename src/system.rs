@@ -137,6 +137,7 @@ fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 
+/// Caches the content of already scanned directories, to avoid repeated expensive filesystem access
 pub(crate) struct WinFileSystemCache {
     files_in_dirs: HashMap<String, HashMap<String, PathBuf>>,
 }

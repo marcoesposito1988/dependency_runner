@@ -99,6 +99,7 @@ impl Executables {
         self.index.contains_key(&dllname.to_lowercase())
     }
 
+    /// Get the root executable file (i.e. the only one with depth equal to zero)
     pub fn get_root(&self) -> Result<Option<&Executable>, LookupError> {
         if self.index.is_empty() {
             return Ok(None);
@@ -130,6 +131,7 @@ impl Executables {
         sorted_executables
     }
 
+    /// Check that all referenced DLLs are found, and (if available) that imported symbols are present
     pub fn check(&self) -> Result<ExecutablesCheckReport, LookupError> {
         let mut report = ExecutablesCheckReport::new();
 
@@ -150,6 +152,7 @@ impl Executables {
         Ok(report)
     }
 
+    /// Check that every dependency exports the symbols imported by this file
     fn check_imports(&self, name: &str) -> Result<ExecutablesCheckReport, LookupError> {
         let exe = self.get(name).ok_or(LookupError::ScanError(format!(
             "Could not find file {}",
@@ -211,6 +214,7 @@ impl Executables {
         Ok(missing_imports)
     }
 
+    /// Check that the exporting DLL has all symbols imported by the importing executable file
     fn check_symbols(
         &self,
         importer: &str,

@@ -4,9 +4,9 @@ extern crate dependency_runner;
 use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
 #[cfg(windows)]
 use dependency_runner::LookupError;
-use dependency_runner::{decanonicalize, demangle_symbol, readable_canonical_path};
 use dependency_runner::{
-    lookup, path_to_string, Executable, Executables, LookupQuery, WindowsSystem,
+    decanonicalize, demangle_symbol, lookup, path_to_string, readable_canonical_path, Executable,
+    Executables, LookupQuery, WindowsSystem,
 };
 
 use anyhow::Context;
@@ -143,72 +143,72 @@ fn main() -> anyhow::Result<()> {
         #[cfg(windows)]
         {
             args
-                    .arg(
-                        Arg::with_name("WORKDIR")
-                            .short("k")
-                            .long("workdir")
-                            .value_name("WORKDIR")
-                            .help(
-                                "Specify a current working directory other than that of the current shell",
-                            )
-                            .takes_value(true),
-                    )
-                    .arg(
-                        Arg::with_name("PATH")
-                            .short("a")
-                            .long("userpath")
-                            .value_name("PATH")
-                            .help("Specify a user path different from that of the current shell")
-                            .takes_value(true),
-                    )
-                    .arg(
-                        Arg::with_name("DWP_FILE_PATH")
-                            .long("dwp-file-path")
-                            .value_name("DWP_FILE_PATH")
-                            .help("Read the search path from a .dwp file (Dependency Walker's format)")
-                            .takes_value(true),
-                    )
-                    .arg(
-                        Arg::with_name("VCXPROJ_USER_PATH")
-                            .long("vcxuser-path")
-                            .value_name("VCXPROJ_USER_PATH")
-                            .help("Path to a .vcxproj.user file to parse for PATH entries to be added to the search path")
-                            .takes_value(true)
-                            .conflicts_with("DWP_FILE_PATH"),
-                    )
-                    .arg(
-                        Arg::with_name("VCXPROJ_CONFIGURATION")
-                            .long("vcx-config")
-                            .value_name("VCXPROJ_CONFIGURATION")
-                            .help("Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or a .vcxproj.user was provided")
-                            .takes_value(true)
-                            .conflicts_with("DWP_FILE_PATH"),
-                    )
+                .arg(
+                    Arg::with_name("WORKDIR")
+                        .short("k")
+                        .long("workdir")
+                        .value_name("WORKDIR")
+                        .help(
+                            "Specify a current working directory other than that of the current shell",
+                        )
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("PATH")
+                        .short("a")
+                        .long("userpath")
+                        .value_name("PATH")
+                        .help("Specify a user path different from that of the current shell")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("DWP_FILE_PATH")
+                        .long("dwp-file-path")
+                        .value_name("DWP_FILE_PATH")
+                        .help("Read the search path from a .dwp file (Dependency Walker's format)")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("VCXPROJ_USER_PATH")
+                        .long("vcxuser-path")
+                        .value_name("VCXPROJ_USER_PATH")
+                        .help("Path to a .vcxproj.user file to parse for PATH entries to be added to the search path")
+                        .takes_value(true)
+                        .conflicts_with("DWP_FILE_PATH"),
+                )
+                .arg(
+                    Arg::with_name("VCXPROJ_CONFIGURATION")
+                        .long("vcx-config")
+                        .value_name("VCXPROJ_CONFIGURATION")
+                        .help("Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or a .vcxproj.user was provided")
+                        .takes_value(true)
+                        .conflicts_with("DWP_FILE_PATH"),
+                )
         }
 
         #[cfg(not(windows))]
         {
             args
-                    .arg(Arg::with_name("Windows root")
-                        .short("w")
-                        .long("windows-root")
-                        .value_name("WINROOT")
-                        .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
-                        .takes_value(true))
-                    .arg(Arg::with_name("WORKDIR")
-                        .short("k")
-                        .long("workdir")
-                        .value_name("WORKDIR")
-                        .help("Specify a current working directory other than that of the current shell")
-                        .takes_value(true))
-                    .arg(
-                        Arg::with_name("PATH")
-                            .short("a")
-                            .long("userpath")
-                            .value_name("PATH")
-                            .help("Specify a user path")
-                            .takes_value(true),
-                    )
+                .arg(Arg::with_name("Windows root")
+                    .short("w")
+                    .long("windows-root")
+                    .value_name("WINROOT")
+                    .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
+                    .takes_value(true))
+                .arg(Arg::with_name("WORKDIR")
+                    .short("k")
+                    .long("workdir")
+                    .value_name("WORKDIR")
+                    .help("Specify a current working directory other than that of the current shell")
+                    .takes_value(true))
+                .arg(
+                    Arg::with_name("PATH")
+                        .short("a")
+                        .long("userpath")
+                        .value_name("PATH")
+                        .help("Specify a user path")
+                        .takes_value(true),
+                )
         }
     };
 

@@ -5,19 +5,29 @@ use crate::query::LookupQuery;
 use crate::system::WinFileSystemCache;
 use crate::LookupError;
 
+/// Reason why a directory is included in the LookupPath
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum LookupPathEntryType {
+    /// The DLL is implicitely loaded by the OS for every process, and not looked up every time
     KnownDLLs,
+    /// Directory where the root executable sits
     ExecutableDir,
+    /// Directory containing the "proxy" DLLs that implement the API set feature
     ApiSet,
+    /// Windows System directory (typically C:\Windows\System32)
     SystemDir,
     // SystemDir16, // ignored
+    /// Windows directory (typically C:\Windows)
     WindowsDir,
+    /// Working directory of the (virtual) process whose DLL lookup we are simulating
     WorkingDir,
+    /// PATH as specified by the system (value PATH variable in the shell executing the process)
     SystemPath,
+    /// Additional path entries specified by the user
     UserPath,
 }
 
+/// Directory to be searched while looking for DLLs, and relative metadata
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct LookupPathEntry {
     pub dir_type: LookupPathEntryType,
@@ -36,11 +46,13 @@ impl LookupPathEntry {
     }
 }
 
+/// Full location of a DLL found during lookup
 pub struct LookupResult {
     pub location: LookupPathEntry,
     pub fullpath: PathBuf,
 }
 
+/// Sorted list of directories to be looked up when searching for a DLL
 pub struct LookupPath {
     pub entries: Vec<LookupPathEntry>,
     fs_cache: std::cell::RefCell<WinFileSystemCache>,
@@ -125,6 +137,7 @@ impl LookupPath {
         }
     }
 
+    /// Get the PATH entries specified by the system
     fn system_path_entries(q: &LookupQuery) -> Vec<LookupPathEntry> {
         if let Some(system) = &q.system {
             system
@@ -142,6 +155,7 @@ impl LookupPath {
         }
     }
 
+    /// Get the PATH entries that were provided by the user when running the program
     fn user_path_entries(q: &LookupQuery) -> Vec<LookupPathEntry> {
         q.user_path
             .iter()
@@ -152,6 +166,7 @@ impl LookupPath {
             .collect::<Vec<_>>()
     }
 
+    /// Parse an entry in a .dwp file
     fn dwp_string_to_context_entry(
         s: &str,
         q: &LookupQuery,
@@ -207,6 +222,7 @@ impl LookupPath {
         }
     }
 
+    /// Build a LookupPath from the content of a Dependency Walker .dwp file
     pub fn from_dwp_file<P: AsRef<Path>>(
         dwp_path: P,
         q: &LookupQuery,

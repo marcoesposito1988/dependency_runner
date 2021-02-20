@@ -12,6 +12,8 @@ struct Job {
     pub depth: usize,
 }
 
+/// Finds the dependencies of the specified executable within the given context
+/// The dependencies are resolved recursively, in a breadth-first fashion.
 pub(crate) struct Runner {
     query: LookupQuery,
     context: LookupPath,
