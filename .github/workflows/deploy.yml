@@ -71,7 +71,7 @@ jobs:
           draft: false
           prerelease: false
       - uses: actions/upload-release-asset@v1
-        id: upload-release-asset
+        id: upload-release-asset-deprun
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -80,7 +80,7 @@ jobs:
           asset_name: deprun-${{ matrix.target }}.zip
           asset_content_type: application/zip
       - uses: actions/upload-release-asset@v1
-        id: upload-release-asset
+        id: upload-release-asset-wldd
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -125,7 +125,7 @@ jobs:
           draft: false
           prerelease: false
       - uses: actions/upload-release-asset@v1
-        id: upload-release-asset
+        id: upload-release-asset-deprun
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -134,7 +134,7 @@ jobs:
           asset_name: deprun-${{ matrix.target }}.tar.gz
           asset_content_type: application/gzip
       - uses: actions/upload-release-asset@v1
-        id: upload-release-asset
+        id: upload-release-asset-wldd
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -210,7 +210,7 @@ jobs:
           draft: false
           prerelease: false
       - name: Upload Release Asset
-        id: upload-release-asset
+        id: upload-release-asset-deprun
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -220,7 +220,7 @@ jobs:
           asset_name: deprun-${{ matrix.target }}.tar.gz
           asset_content_type: application/gzip
       - name: Upload Release Asset
-        id: upload-release-asset
+        id: upload-release-asset-wldd
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
