@@ -51,6 +51,8 @@ jobs:
       - run: |
           cd ./target/${{ matrix.target }}/release/
           7z a "deprun.zip" "deprun.exe"
+          echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
+          echo "github.workspace = ${{ github.workspace }}"
           mv "deprun.zip" $GITHUB_WORKSPACE
       - run: |
           7z a "wldd.zip" "wldd.exe"
