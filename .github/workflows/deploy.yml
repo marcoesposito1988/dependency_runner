@@ -53,7 +53,6 @@ jobs:
           7z a "deprun.zip" "deprun.exe"
           mv "deprun.zip" $GITHUB_WORKSPACE
       - run: |
-          cd ./target/${{ matrix.target }}/release/
           7z a "wldd.zip" "wldd.exe"
           mv "wldd.zip" $GITHUB_WORKSPACE
         shell: bash
