@@ -51,12 +51,10 @@ jobs:
       - run: |
           cd ./target/${{ matrix.target }}/release/
           7z a "deprun.zip" "deprun.exe"
-          echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
-          echo "github.workspace = ${{ github.workspace }}"
-          mv "deprun.zip" $GITHUB_WORKSPACE
+          mv "deprun.zip" ${{ github.workspace }}
       - run: |
           7z a "wldd.zip" "wldd.exe"
-          mv "wldd.zip" $GITHUB_WORKSPACE
+          mv "wldd.zip" ${{ github.workspace }}
         shell: bash
         # We're using using a fork of `actions/create-release` that detects
         # whether a release is already available or not first.
