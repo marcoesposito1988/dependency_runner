@@ -9,6 +9,9 @@ repository = "https://github.com/marcoesposito1988/dependency_runner/"
 readme = "README.md"
 categories = ["command-line-utilities", "development-tools"]
 keywords = ["dll"]
+exclude = [
+    "test_data/*",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
