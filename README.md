@@ -51,6 +51,12 @@ system libraries if no such partition is available on the system. The example ab
 work on any operating system.
 
 ## Getting started
+### Binary releases (any OS)
+- download the binaries for your OS from the [GitHub Releases page](https://github.com/marcoesposito1988/dependency_runner/releases)
+- copy the binaries somewhere on your PATH
+    - Linux: `/usr/local/bin` is a good place
+    - Windows: create your own directory somewhere and add it to the PATH variable through the control panel
+
 ### Installation from source with Cargo (any OS)
 - download and execute rustup
 - check out this repository and `cd` into it
