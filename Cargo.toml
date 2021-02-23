@@ -1,9 +1,14 @@
 [package]
 name = "dependency_runner"
+description = "ldd for Windows - and more!"
 version = "0.1.0"
 authors = ["Marco Esposito <esposito@imfusion.com>"]
 edition = "2018"
 license = "LGPL-3.0-only"
+repository = "https://github.com/marcoesposito1988/dependency_runner/"
+readme = "README.md"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["dll"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
