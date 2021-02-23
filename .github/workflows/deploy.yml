@@ -51,11 +51,9 @@ jobs:
       - run: |
           cd ./target/${{ matrix.target }}/release/
           7z a "deprun.zip" "deprun.exe"
-          mv "deprun.zip" ${{ github.workspace }}
       - run: |
           cd ./target/${{ matrix.target }}/release/
           7z a "wldd.zip" "wldd.exe"
-          mv "wldd.zip" ${{ github.workspace }}
         shell: bash
         # We're using using a fork of `actions/create-release` that detects
         # whether a release is already available or not first.
@@ -76,7 +74,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deprun.zip
+          asset_path: target/${{ matrix.target }}/release/deprun.zip
           asset_name: deprun-${{ matrix.target }}.zip
           asset_content_type: application/zip
       - uses: actions/upload-release-asset@v1
@@ -85,7 +83,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: wldd.zip
+          asset_path: target/${{ matrix.target }}/release/wldd.zip
           asset_name: wldd-${{ matrix.target }}.zip
           asset_content_type: application/zip
 
