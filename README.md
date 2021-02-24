@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/dependency_runner.svg)](https://crates.io/crates/dependency_runner)
+[![Dependency Runner CI](https://github.com/marcoesposito1988/dependency_runner/actions/workflows/ci.yml/badge.svg)](https://github.com/marcoesposito1988/dependency_runner/actions/workflows/ci.yml)
+
 # Dependency runner
 
 ldd for Windows - and more!
