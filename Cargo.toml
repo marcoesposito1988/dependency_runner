@@ -17,6 +17,7 @@ exclude = [
 
 [dependencies]
 pelite = "0.9.0"
+dataview = "0.1.1"
 serde = { version = "1.0.117", features = ["derive"] }
 anyhow = "1.0.34"
 thiserror = "1.0.22"
