@@ -295,6 +295,7 @@ mod tests {
     use crate::query::LookupQuery;
     use crate::runner::Runner;
     use crate::{Executables, LookupError};
+    use fs_err as fs;
     use std::collections::HashSet;
     use std::iter::FromIterator;
 

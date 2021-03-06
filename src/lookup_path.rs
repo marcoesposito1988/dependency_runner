@@ -1,10 +1,11 @@
-use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-
 use crate::apiset::ApisetMap;
 use crate::query::LookupQuery;
 use crate::system::WinFileSystemCache;
 use crate::LookupError;
+#[cfg(windows)]
+use fs_err as fs;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 /// Directory/set of DLLs to be searched, and relative metadata
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -63,7 +64,7 @@ pub struct LookupResult {
 
 /// Sorted list of directories to be looked up when searching for a DLL
 pub struct LookupPath {
-    pub(crate) apiset_map: Option<ApisetMap>,
+    pub apiset_map: Option<ApisetMap>,
     pub entries: Vec<LookupPathEntry>,
     fs_cache: std::cell::RefCell<WinFileSystemCache>,
 }
@@ -191,7 +192,7 @@ impl LookupPath {
     ) -> Result<Self, LookupError> {
         // https://www.dependencywalker.com/help/html/path_files.htm
         let comment_chars = [':', ';', '/', '\'', '#'];
-        let lines: Vec<String> = std::fs::read_to_string(dwp_path)?
+        let lines: Vec<String> = fs::read_to_string(dwp_path)?
             .lines()
             .filter(|s| !(s.is_empty() || comment_chars.contains(&s.chars().nth(0).unwrap())))
             .map(str::to_owned)

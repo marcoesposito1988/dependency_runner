@@ -72,6 +72,7 @@ dependencies = [
  "anyhow",
  "clap",
  "dataview",
+ "fs-err",
  "msvc-demangler",
  "pelite",
  "regex",
@@ -87,6 +88,12 @@ name = "derive_pod"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9ddbcc038e3c38612dae1ec0f576b206fb833462903337a2c881ab28ae1976d"
+
+[[package]]
+name = "fs-err"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcd1163ae48bda72a20ae26d66a04d3094135cadab911cff418ae5e33f253431"
 
 [[package]]
 name = "hermit-abi"

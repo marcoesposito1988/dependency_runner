@@ -1,3 +1,4 @@
+use fs_err as fs;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use thiserror::Error;
@@ -43,7 +44,7 @@ pub fn decanonicalize(s: &str) -> String {
 
 /// Provide the canonical form of the Path as a string, or die trying
 pub fn readable_canonical_path<P: AsRef<Path>>(p: P) -> Result<String, LookupError> {
-    Ok(decanonicalize(std::fs::canonicalize(&p)?.to_str().ok_or(
+    Ok(decanonicalize(fs::canonicalize(&p)?.to_str().ok_or(
         LookupError::PathConversionError(format!(
             "Can't compute canonic path for {:?}",
             p.as_ref()
@@ -67,11 +68,12 @@ pub fn osstring_to_string(p: &OsStr) -> String {
 #[cfg(test)]
 mod tests {
     use crate::{decanonicalize, readable_canonical_path, LookupError};
+    use fs_err as fs;
 
     #[test]
     fn decanonicalize_removes_prefix() -> Result<(), LookupError> {
         let cargo_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let cargo_dir_canon = std::fs::canonicalize(&cargo_dir)?;
+        let cargo_dir_canon = fs::canonicalize(&cargo_dir)?;
 
         let cargo_dir_decanon = decanonicalize(cargo_dir_canon.to_str().unwrap());
         assert!(!cargo_dir_decanon.contains(r"\\?\"));

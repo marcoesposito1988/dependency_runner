@@ -1,9 +1,7 @@
 extern crate msvc_demangler;
 extern crate thiserror;
-
 use crate::LookupError;
 use pelite::pe64::{Pe, PeFile};
-
 use std::collections::{HashMap, HashSet};
 
 /// Read the DLL name as specified in the PE file headers

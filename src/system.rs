@@ -1,14 +1,13 @@
 #[cfg(windows)]
 extern crate winapi;
-
+use crate::{apiset, LookupError};
+use fs_err as fs;
+use std::collections::HashMap;
 #[cfg(windows)]
 use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
-
-use crate::{apiset, LookupError};
-use std::collections::HashMap;
 
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
@@ -51,7 +50,7 @@ impl WindowsSystem {
         let path = path_str
             .and_then(|s| {
                 Ok(s.split(";")
-                    .filter_map(|subs| std::fs::canonicalize(subs).ok())
+                    .filter_map(|subs| fs::canonicalize(subs).ok())
                     .collect())
             })
             .ok();
@@ -136,7 +135,7 @@ fn get_winapi_directory(
         Err(Error::last_os_error())
     } else {
         let valid_bfr = &bfr[..ret as usize];
-        std::fs::canonicalize(OsString::from_wide(valid_bfr))
+        fs::canonicalize(OsString::from_wide(valid_bfr))
     }
 }
 
@@ -200,7 +199,7 @@ impl WinFileSystemCache {
             )))?
             .to_owned();
         if !self.files_in_dirs.contains_key(&folder_str) {
-            let matching_entries: HashMap<String, PathBuf> = std::fs::read_dir(folder)?
+            let matching_entries: HashMap<String, PathBuf> = fs::read_dir(folder.as_ref())?
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| entry.metadata().map_or_else(|_| false, |m| m.is_file()))
                 .filter_map(|entry| {
@@ -225,9 +224,10 @@ mod tests {
     #[test]
     fn context_win10() -> Result<(), LookupError> {
         use super::WindowsSystem;
+        use fs_err as fs;
         let ctx = WindowsSystem::current()?;
-        assert_eq!(ctx.win_dir, std::fs::canonicalize("C:\\Windows")?);
-        assert_eq!(ctx.sys_dir, std::fs::canonicalize("C:\\Windows\\System32")?);
+        assert_eq!(ctx.win_dir, fs::canonicalize("C:\\Windows")?);
+        assert_eq!(ctx.sys_dir, fs::canonicalize("C:\\Windows\\System32")?);
 
         // TODO: once implemented, document that it can fail if system is set otherwise
         // assert_eq!(ctx.safe_dll_search_mode_on, Some(true));
@@ -237,7 +237,7 @@ mod tests {
         assert!(user_path.is_some());
         assert!(user_path
             .unwrap()
-            .contains(&std::fs::canonicalize("C:\\Windows")?));
+            .contains(&fs::canonicalize("C:\\Windows")?));
         Ok(())
     }
 

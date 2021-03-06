@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
 use crate::readable_canonical_path;
 use crate::LookupError;
+use fs_err as fs;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 // Parsing of Visual Studio files
@@ -106,7 +106,7 @@ fn extract_debugging_configuration_from_config_node(
 pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
     p: &P,
 ) -> anyhow::Result<HashMap<String, VcxDebuggingConfiguration>> {
-    let filecontent = std::fs::read_to_string(p)?;
+    let filecontent = fs::read_to_string(p)?;
     let doc = roxmltree::Document::parse(&filecontent)?;
     let project_node = doc
         .descendants()
@@ -164,7 +164,7 @@ fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
 pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>(
     p: &P,
 ) -> anyhow::Result<HashMap<String, VcxExecutableInformation>> {
-    let filecontent = std::fs::read_to_string(p)?;
+    let filecontent = fs::read_to_string(p)?;
     let doc = roxmltree::Document::parse(&filecontent)?;
     let project_node = doc
         .descendants()
