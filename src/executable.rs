@@ -159,13 +159,7 @@ impl Executables {
             name
         )))?;
 
-        if exe
-            .details
-            .as_ref()
-            .map(|d| d.is_api_set || d.is_system)
-            .unwrap_or(true)
-        {
-            // TODO: shoulnd't even get here
+        if exe.details.as_ref().map(|d| d.is_api_set).unwrap_or(true) {
             return Ok(ExecutablesCheckReport::new());
         }
 
@@ -360,7 +354,7 @@ mod tests {
             .as_ref()
             .unwrap()
             .full_path;
-        assert_eq!(exe_p, &std::fs::canonicalize(exe_path)?);
+        assert_eq!(exe_p, &fs::canonicalize(exe_path)?);
 
         Ok(())
     }

@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-use crate::LookupError;
+use crate::{apiset, LookupError};
 use std::collections::HashMap;
 
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
@@ -22,6 +22,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
+    pub apiset_map: Option<apiset::ApisetMap>,
     pub known_dlls: Option<Vec<PathBuf>>,
     pub win_dir: PathBuf,
     pub sys_dir: PathBuf,
@@ -36,6 +37,16 @@ impl WindowsSystem {
         // and mark their dependencies (which are not listed there) as known DLLs as well
         // https://lucasg.github.io/2017/06/07/listing-known-dlls/
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
+        let win_dir = get_windows_directory()?;
+        let sys_dir = get_system_directory()?;
+        let apiset = match apiset::parse_apiset(sys_dir.join("apisetschema.dll")) {
+            Ok(apiset) => Some(apiset),
+            Err(e) => {
+                eprintln!("{:?}", e);
+                None
+            }
+        };
+
         let path_str = std::env::var("PATH");
         let path = path_str
             .and_then(|s| {
@@ -47,8 +58,9 @@ impl WindowsSystem {
         Ok(Self {
             safe_dll_search_mode_on: None,
             known_dlls: None,
-            win_dir: get_windows_directory()?,
-            sys_dir: get_system_directory()?,
+            apiset_map: apiset,
+            win_dir,
+            sys_dir,
             system_path: path,
         })
     }
@@ -85,6 +97,7 @@ impl WindowsSystem {
         if sys_dir.exists() {
             Some(Self {
                 safe_dll_search_mode_on: None,
+                apiset_map: apiset::parse_apiset(sys_dir.join("apisetschema.dll")).ok(),
                 known_dlls: None,
                 win_dir,
                 sys_dir,
@@ -174,7 +187,7 @@ impl WinFileSystemCache {
             )))?;
         Ok(dir
             .get(&filename.as_ref().to_str().unwrap().to_lowercase())
-            .map(|p| p.to_owned()))
+            .map(|p| folder.as_ref().join(p)))
     }
 
     pub(crate) fn scan_folder<P: AsRef<Path>>(&mut self, folder: P) -> Result<(), LookupError> {
@@ -207,7 +220,6 @@ impl WinFileSystemCache {
 mod tests {
     use crate::system::WinFileSystemCache;
     use crate::LookupError;
-    use std::path::PathBuf;
 
     #[cfg(windows)]
     #[test]
@@ -235,20 +247,20 @@ mod tests {
         let test_file_path =
             d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
         assert!(test_file_path.exists());
-        let folder = test_file_path.parent().unwrap();
+        let folder = std::fs::canonicalize(test_file_path.parent().unwrap())?;
 
         let mut fscache = WinFileSystemCache::new();
-        let expected_res = Some(PathBuf::from("DepRunTest.exe"));
+        let expected_res = Some(folder.join("DepRunTest.exe"));
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("depruntest.exe", folder)?,
+            fscache.test_file_in_folder_case_insensitive("depruntest.exe", &folder)?,
             expected_res
         );
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("Depruntest.exe", folder)?,
+            fscache.test_file_in_folder_case_insensitive("Depruntest.exe", &folder)?,
             expected_res
         );
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", folder)?,
+            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", &folder)?,
             None
         );
         Ok(())

@@ -18,14 +18,13 @@ mod win10;
 
 use crate::LookupError;
 use std::path::Path;
-use std::slice;
 use win10::Entry;
 
 pub type ApisetMap = std::collections::HashMap<String, Vec<String>>;
 
 fn parse_apiset_entry(e: Entry) -> Result<(String, Vec<String>), LookupError> {
     Ok((
-        String::from_utf16_lossy(e.name()?),
+        String::from_utf16_lossy(e.name()?).to_lowercase(),
         e.values()?
             .iter()
             .map(|v| String::from_utf16_lossy(v.host_name().unwrap()))
