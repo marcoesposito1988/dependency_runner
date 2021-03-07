@@ -1,6 +1,7 @@
 extern crate dependency_runner;
 
 use clap::{App, Arg};
+use fs_err as fs;
 
 use dependency_runner::{
     decanonicalize, lookup, path_to_string, readable_canonical_path, Executable, LookupPath,
@@ -56,7 +57,7 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    let binary_path = std::fs::canonicalize(binary_path)?;
+    let binary_path = fs::canonicalize(binary_path)?;
 
     let hide_system_dlls = matches.is_present("HIDE_SYS_DLLS");
 

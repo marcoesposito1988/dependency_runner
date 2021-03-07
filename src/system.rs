@@ -1,14 +1,13 @@
 #[cfg(windows)]
 extern crate winapi;
-
+use crate::{apiset, LookupError};
+use fs_err as fs;
+use std::collections::HashMap;
 #[cfg(windows)]
 use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
-
-use crate::LookupError;
-use std::collections::HashMap;
 
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
@@ -22,6 +21,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
+    pub apiset_map: Option<apiset::ApisetMap>,
     pub known_dlls: Option<Vec<PathBuf>>,
     pub win_dir: PathBuf,
     pub sys_dir: PathBuf,
@@ -36,19 +36,30 @@ impl WindowsSystem {
         // and mark their dependencies (which are not listed there) as known DLLs as well
         // https://lucasg.github.io/2017/06/07/listing-known-dlls/
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
+        let win_dir = get_windows_directory()?;
+        let sys_dir = get_system_directory()?;
+        let apiset = match apiset::parse_apiset(sys_dir.join("apisetschema.dll")) {
+            Ok(apiset) => Some(apiset),
+            Err(e) => {
+                eprintln!("{:?}", e);
+                None
+            }
+        };
+
         let path_str = std::env::var("PATH");
         let path = path_str
             .and_then(|s| {
                 Ok(s.split(";")
-                    .filter_map(|subs| std::fs::canonicalize(subs).ok())
+                    .filter_map(|subs| fs::canonicalize(subs).ok())
                     .collect())
             })
             .ok();
         Ok(Self {
             safe_dll_search_mode_on: None,
             known_dlls: None,
-            win_dir: get_windows_directory()?,
-            sys_dir: get_system_directory()?,
+            apiset_map: apiset,
+            win_dir,
+            sys_dir,
             system_path: path,
         })
     }
@@ -85,6 +96,7 @@ impl WindowsSystem {
         if sys_dir.exists() {
             Some(Self {
                 safe_dll_search_mode_on: None,
+                apiset_map: apiset::parse_apiset(sys_dir.join("apisetschema.dll")).ok(),
                 known_dlls: None,
                 win_dir,
                 sys_dir,
@@ -123,7 +135,7 @@ fn get_winapi_directory(
         Err(Error::last_os_error())
     } else {
         let valid_bfr = &bfr[..ret as usize];
-        std::fs::canonicalize(OsString::from_wide(valid_bfr))
+        fs::canonicalize(OsString::from_wide(valid_bfr))
     }
 }
 
@@ -174,7 +186,7 @@ impl WinFileSystemCache {
             )))?;
         Ok(dir
             .get(&filename.as_ref().to_str().unwrap().to_lowercase())
-            .map(|p| p.to_owned()))
+            .map(|p| folder.as_ref().join(p)))
     }
 
     pub(crate) fn scan_folder<P: AsRef<Path>>(&mut self, folder: P) -> Result<(), LookupError> {
@@ -187,7 +199,7 @@ impl WinFileSystemCache {
             )))?
             .to_owned();
         if !self.files_in_dirs.contains_key(&folder_str) {
-            let matching_entries: HashMap<String, PathBuf> = std::fs::read_dir(folder)?
+            let matching_entries: HashMap<String, PathBuf> = fs::read_dir(folder.as_ref())?
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| entry.metadata().map_or_else(|_| false, |m| m.is_file()))
                 .filter_map(|entry| {
@@ -207,15 +219,15 @@ impl WinFileSystemCache {
 mod tests {
     use crate::system::WinFileSystemCache;
     use crate::LookupError;
-    use std::path::PathBuf;
 
     #[cfg(windows)]
     #[test]
     fn context_win10() -> Result<(), LookupError> {
         use super::WindowsSystem;
+        use fs_err as fs;
         let ctx = WindowsSystem::current()?;
-        assert_eq!(ctx.win_dir, std::fs::canonicalize("C:\\Windows")?);
-        assert_eq!(ctx.sys_dir, std::fs::canonicalize("C:\\Windows\\System32")?);
+        assert_eq!(ctx.win_dir, fs::canonicalize("C:\\Windows")?);
+        assert_eq!(ctx.sys_dir, fs::canonicalize("C:\\Windows\\System32")?);
 
         // TODO: once implemented, document that it can fail if system is set otherwise
         // assert_eq!(ctx.safe_dll_search_mode_on, Some(true));
@@ -225,7 +237,7 @@ mod tests {
         assert!(user_path.is_some());
         assert!(user_path
             .unwrap()
-            .contains(&std::fs::canonicalize("C:\\Windows")?));
+            .contains(&fs::canonicalize("C:\\Windows")?));
         Ok(())
     }
 
@@ -235,20 +247,20 @@ mod tests {
         let test_file_path =
             d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
         assert!(test_file_path.exists());
-        let folder = test_file_path.parent().unwrap();
+        let folder = std::fs::canonicalize(test_file_path.parent().unwrap())?;
 
         let mut fscache = WinFileSystemCache::new();
-        let expected_res = Some(PathBuf::from("DepRunTest.exe"));
+        let expected_res = Some(folder.join("DepRunTest.exe"));
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("depruntest.exe", folder)?,
+            fscache.test_file_in_folder_case_insensitive("depruntest.exe", &folder)?,
             expected_res
         );
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("Depruntest.exe", folder)?,
+            fscache.test_file_in_folder_case_insensitive("Depruntest.exe", &folder)?,
             expected_res
         );
         assert_eq!(
-            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", folder)?,
+            fscache.test_file_in_folder_case_insensitive("somerandomstring.txt", &folder)?,
             None
         );
         Ok(())

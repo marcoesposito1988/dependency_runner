@@ -119,8 +119,6 @@ list of each node.
 ```bash
 deprun --print-system-dlls path/to/your/executable.exe
 ```
-WARNING: until API sets are correctly implemented, this may result in gigantic output, 
-and hence performance degradation
     
 ### wldd
 a subset of the above, check with `-h`
@@ -141,11 +139,11 @@ Help is welcome in the form of issues and pull request!
 - v 0.2.0
     - [ ] parallelization across multiple threads (if ever necessary)
     - [ ] visualization of library symbols with address/ordinal
-    - [ ] support of API levels
+    - [x] support of API sets
     - [ ] support of manifests
     - [ ] support of KnownDLLs
     - [ ] release on package managers
-      - [ ] crates.io
+      - [x] crates.io
       - [ ] Chocolatey
       - [ ] WinGet?
       - [ ] APT?
@@ -164,9 +162,8 @@ Help is welcome in the form of issues and pull request!
 ## Limitations
 - `LoadLibraryEx` and similar mechanism can't be inspected without letting the program run. 
   This limitation is common to other similar tools that recursively scan executables files and parse their import tables.  
-- no support yet for manifests, API sets or "known DLLs". You can take a look at [Dependencies](https://github.com/lucasg/Dependencies) instead  
-- symbol imports among system DLLs are not checked by default, because they lead to performance degradation 
-  (this may change once API sets are supported); however, you can usually take their correctness for granted 
+- no support yet for manifests or "known DLLs". You can take a look at [Dependencies](https://github.com/lucasg/Dependencies) instead  
+- the dependencies of system DLLs are not recursed into, for performance reasons; however, you can usually take their correctness for granted 
 
 ## Acknowledgements
 

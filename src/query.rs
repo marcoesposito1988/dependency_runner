@@ -1,6 +1,7 @@
 use crate::common::LookupError;
 use crate::system::WindowsSystem;
 use crate::vcx::{VcxDebuggingConfiguration, VcxExecutableInformation};
+use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 /// Complete specification of a search task
@@ -99,7 +100,7 @@ impl LookupQuery {
     pub fn read_from_vcx_executable_information(
         exe_info: &VcxExecutableInformation,
     ) -> Result<Self, LookupError> {
-        let exe_path = std::fs::canonicalize(&exe_info.executable_path)?;
+        let exe_path = fs::canonicalize(&exe_info.executable_path)?;
 
         let app_dir = exe_path.parent().ok_or(LookupError::ContextDeductionError(
             "Could not find application directory for given executable ".to_owned()
@@ -134,6 +135,7 @@ impl LookupQuery {
 mod tests {
     use crate::query::LookupQuery;
     use crate::LookupError;
+    use fs_err as fs;
 
     #[test]
     fn build_query() -> Result<(), LookupError> {
@@ -147,11 +149,11 @@ mod tests {
         assert!(&query.target_exe.ends_with(relative_path));
         assert_eq!(
             &query.working_dir,
-            &std::fs::canonicalize(&exe_path.parent().unwrap())?
+            &fs::canonicalize(&exe_path.parent().unwrap())?
         );
         assert_eq!(
             &query.app_dir,
-            &std::fs::canonicalize(&exe_path.parent().unwrap())?
+            &fs::canonicalize(&exe_path.parent().unwrap())?
         );
         assert!(&query.max_depth.is_none());
         #[cfg(windows)]

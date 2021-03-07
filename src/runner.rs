@@ -1,8 +1,6 @@
-use std::ffi::OsStr;
-
 use crate::common::LookupError;
 use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
-use crate::lookup_path::{LookupPath, LookupPathEntryType};
+use crate::lookup_path::{LookupPath, LookupPathEntry};
 use crate::query::LookupQuery;
 use crate::{pe, readable_canonical_path};
 
@@ -85,14 +83,14 @@ impl Runner {
         self.enqueue(&filename, 0);
 
         while let Some(lookup_query) = self.pop() {
-            if lookup_query.depth <= self.query.max_depth.unwrap_or(9999) {
+            if lookup_query.depth <= self.query.max_depth.unwrap_or(usize::MAX) {
                 // don't search again if we already found the executable
                 if self.executables_found.contains(&lookup_query.dllname) {
                     continue;
                 }
                 if let Some(r) = self
                     .context
-                    .search_file(OsStr::new(&lookup_query.dllname))
+                    .search_dll(&lookup_query.dllname)
                     .unwrap_or(None)
                 {
                     let filemap =
@@ -103,11 +101,20 @@ impl Runner {
                     let dllname =
                         pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
                     let is_system = r.location.is_system();
-                    let is_api_set = r.location.dir_type == LookupPathEntryType::ApiSet;
+                    let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet);
                     let dependencies = if is_api_set {
-                        None
+                        self.context
+                            .apiset_map
+                            .as_ref()
+                            .map(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
+                            .flatten()
                     } else {
-                        Some(pe::read_dependencies(&pefile)?)
+                        if r.location.is_system() && r.location != LookupPathEntry::ApiSet {
+                            // system DLLs have just too many dependencies
+                            None
+                        } else {
+                            Some(pe::read_dependencies(&pefile)?)
+                        }
                     };
                     let symbols = if !is_api_set && self.query.extract_symbols {
                         Some(ExecutableSymbols {
@@ -118,12 +125,9 @@ impl Runner {
                         None
                     };
 
-                    // TODO: we should be able to handle system DLLs with api set resolution in place
-                    if !(is_api_set || is_system) {
-                        if let Some(deps) = &dependencies {
-                            for d in deps {
-                                self.enqueue(&d, lookup_query.depth + 1);
-                            }
+                    if let Some(deps) = &dependencies {
+                        for d in deps {
+                            self.enqueue(&d, lookup_query.depth + 1);
                         }
                     }
                     self.register_finding(Executable {

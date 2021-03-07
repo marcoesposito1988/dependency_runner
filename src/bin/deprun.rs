@@ -11,6 +11,7 @@ use dependency_runner::{
 
 use anyhow::Context;
 use clap::{value_t, App, Arg};
+use fs_err as fs;
 use std::path::PathBuf;
 
 #[cfg(windows)]
@@ -55,9 +56,7 @@ fn visit_depth_first(
     print_system_dlls: bool,
 ) {
     if query.max_depth.map(|d| current_depth < d).unwrap_or(true) {
-        if !(e.details.as_ref().map(|d| d.is_api_set).unwrap_or(false)
-            || (e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls))
-        {
+        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls) {
             let folder = if !e.found {
                 "not found".to_owned()
             } else {
@@ -71,19 +70,16 @@ fn visit_depth_first(
             println!("{}{} => {}", "\t".repeat(current_depth), e.dllname, folder);
 
             if let Some(details) = &e.details {
-                if !details.is_system {
-                    // TODO: may be feasible with api set resolution
-                    if let Some(dependencies) = &details.dependencies {
-                        for d in dependencies {
-                            if let Some(de) = exes.get(&d) {
-                                visit_depth_first(
-                                    de,
-                                    current_depth + 1,
-                                    exes,
-                                    query,
-                                    print_system_dlls,
-                                );
-                            }
+                if let Some(dependencies) = &details.dependencies {
+                    for d in dependencies {
+                        if let Some(de) = exes.get(&d) {
+                            visit_depth_first(
+                                de,
+                                current_depth + 1,
+                                exes,
+                                query,
+                                print_system_dlls,
+                            );
                         }
                     }
                 }
@@ -235,7 +231,7 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    let binary_path = std::fs::canonicalize(binary_path)?;
+    let binary_path = fs::canonicalize(binary_path)?;
 
     let print_system_dlls = matches.is_present("PRINT_SYS_DLLS");
 
@@ -327,7 +323,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(overridden_path) = matches.value_of("PATH") {
         let canonicalized_path: Vec<PathBuf> = overridden_path
             .split(";")
-            .map(|s| std::fs::canonicalize(s))
+            .map(|s| fs::canonicalize(s))
             .collect::<Result<Vec<_>, std::io::Error>>()?;
         query.user_path.extend(canonicalized_path);
     } else {
@@ -465,8 +461,7 @@ fn main() -> anyhow::Result<()> {
         let display = path.display();
 
         // Open a file in write-only mode, returns `io::Result<File>`
-        let mut file =
-            std::fs::File::create(&path).context(format!("couldn't create {}", display))?;
+        let mut file = fs::File::create(&path).context(format!("couldn't create {}", display))?;
 
         // Write to `file`, returns `io::Result<()>`
         file.write_all(js.as_bytes())
