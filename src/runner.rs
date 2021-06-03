@@ -117,10 +117,20 @@ impl Runner {
                         }
                     };
                     let symbols = if !is_api_set && self.query.extract_symbols {
-                        Some(ExecutableSymbols {
-                            exported: pe::read_exports(&pefile)?,
-                            imported: pe::read_imports(&pefile)?,
-                        })
+                        let exported = pe::read_exports(&pefile);
+                        let imported = pe::read_imports(&pefile);
+                        if exported.is_ok() && imported.is_ok() {
+                            Some(ExecutableSymbols {
+                                exported: exported.unwrap(),
+                                imported: imported.unwrap(),
+                            })
+                        } else {
+                            eprintln!(
+                                "Error extracting symbols of library {}",
+                                readable_canonical_path(&r.fullpath)?
+                            );
+                            None
+                        }
                     } else {
                         None
                     };
