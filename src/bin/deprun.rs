@@ -323,7 +323,15 @@ fn main() -> anyhow::Result<()> {
     if let Some(overridden_path) = matches.value_of("PATH") {
         let canonicalized_path: Vec<PathBuf> = overridden_path
             .split(";")
-            .map(|s| fs::canonicalize(s))
+            .filter_map(|s| {
+                let p = std::path::Path::new(s);
+                if p.exists() {
+                    Some(fs::canonicalize(s))
+                } else {
+                    eprintln!("Skipping non-existing path entry {}", s);
+                    None
+                }
+            })
             .collect::<Result<Vec<_>, std::io::Error>>()?;
         query.user_path.extend(canonicalized_path);
     } else {
