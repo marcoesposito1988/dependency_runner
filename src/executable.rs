@@ -1,4 +1,4 @@
-use crate::{LookupError, LookupQuery};
+use crate::LookupError;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -298,10 +298,6 @@ mod tests {
 
     #[test]
     fn empty_executables() -> Result<(), LookupError> {
-        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let exe_path =
-            d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
-        let q = LookupQuery::deduce_from_executable_location(&exe_path)?;
         let exes = Executables::new();
         assert!(!exes.contains("NonExistingExecutable.exe"));
 

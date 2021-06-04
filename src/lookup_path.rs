@@ -1,4 +1,3 @@
-use crate::apiset::ApisetMap;
 use crate::query::LookupQuery;
 use crate::system::WinFileSystemCache;
 use crate::LookupError;
@@ -74,6 +73,16 @@ pub struct LookupPath {
 impl LookupPath {
     pub fn new(query: LookupQuery) -> Self {
         let entries = if let Some(system) = &query.system {
+            let knowndlls_entry = if system.known_dlls.is_some() {
+                vec![LookupPathEntry::KnownDLLs]
+            } else {
+                vec![]
+            };
+            let apiset_entry = if system.apiset_map.is_some() {
+                vec![LookupPathEntry::ApiSet]
+            } else {
+                vec![]
+            };
             let system_entries = vec![
                 LookupPathEntry::SystemDir(system.sys_dir.clone()),
                 // 16-bit system directory ignored
@@ -83,6 +92,8 @@ impl LookupPath {
             if system.safe_dll_search_mode_on.unwrap_or(true) {
                 // default mode (assume if not specified)
                 [
+                    knowndlls_entry,
+                    apiset_entry,
                     vec![LookupPathEntry::ExecutableDir(query.app_dir.clone())],
                     system_entries,
                     vec![LookupPathEntry::WorkingDir(query.working_dir.clone())],
@@ -93,6 +104,8 @@ impl LookupPath {
             } else {
                 // if HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode is 0
                 [
+                    knowndlls_entry,
+                    apiset_entry,
                     vec![
                         LookupPathEntry::ExecutableDir(query.app_dir.clone()),
                         LookupPathEntry::WorkingDir(query.working_dir.clone()),
@@ -218,9 +231,63 @@ impl LookupPath {
     // looks for a DLL by name
     // first looks in the known dlls, then in the api set, then in the concrete entries
     pub fn search_dll(&self, library: &str) -> Result<Option<LookupResult>, LookupError> {
-        // if known_dlls.contains(library) {
-        //     return known_dlls[library];
-        // }
+        for e in &self.entries {
+            match e {
+                LookupPathEntry::KnownDLLs => {
+                    if let Ok(Some(ret)) = self.search_dll_in_known_dlls(library) {
+                        return Ok(Some(ret));
+                    }
+                }
+                LookupPathEntry::ApiSet => {
+                    if let Ok(Some(ret)) = self.search_dll_in_apiset_map(library) {
+                        return Ok(Some(ret));
+                    }
+                }
+                LookupPathEntry::ExecutableDir(p)
+                | LookupPathEntry::SystemDir(p)
+                | LookupPathEntry::WindowsDir(p)
+                | LookupPathEntry::SystemPath(p)
+                | LookupPathEntry::UserPath(p)
+                | LookupPathEntry::WorkingDir(p) => {
+                    if let Some(r) = self.search_file_in_folder(OsStr::new(library), &p)? {
+                        return Ok(Some(LookupResult {
+                            location: e.clone(),
+                            fullpath: r,
+                        }));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    // looks for a DLL by name
+    // first looks in the known dlls, then in the api set, then in the concrete entries
+    fn search_dll_in_known_dlls(&self, library: &str) -> Result<Option<LookupResult>, LookupError> {
+        if let Some(kd) = self
+            .query
+            .system
+            .as_ref()
+            .and_then(|s| s.known_dlls.as_ref())
+        {
+            if let Some(lp) = kd.get(&library.to_ascii_lowercase()) {
+                return Ok(Some(LookupResult {
+                    location: LookupPathEntry::KnownDLLs,
+                    fullpath: lp.clone(),
+                }));
+            } else {
+                // DLL not found among the KnownDLLs
+                Ok(None)
+            }
+        } else {
+            // TODO: error? we don't have a known dlls list available, so there should be no entry to lead us here
+            Ok(None)
+        }
+    }
+
+    // looks for a DLL by name
+    // first looks in the known dlls, then in the api set, then in the concrete entries
+    fn search_dll_in_apiset_map(&self, library: &str) -> Result<Option<LookupResult>, LookupError> {
         // API set: return location of DLL on disk, although useless, to show it in the results
         if let Some(apisetmap) = self
             .query
@@ -245,27 +312,18 @@ impl LookupPath {
                             fullpath: p?,
                         })
                     });
+                } else {
+                    // TODO error? we don't have access to a system32 directory, so we shouldn't have access to an apiset map either
+                    Ok(None)
                 }
+            } else {
+                // not found
+                Ok(None)
             }
+        } else {
+            // TODO: error? we don't have an apisetmap available, so there should be no entry to lead us here
+            Ok(None)
         }
-        // search file in the lookup path as usual
-        self.search_file(OsStr::new(library))
-    }
-
-    // returns the actual full path to the executable, if found
-    fn search_file(&self, filename: &OsStr) -> Result<Option<LookupResult>, LookupError> {
-        for e in &self.entries {
-            if let Some(p) = e.get_path() {
-                if let Some(r) = self.search_file_in_folder(filename, &p)? {
-                    return Ok(Some(LookupResult {
-                        location: e.clone(),
-                        fullpath: r,
-                    }));
-                }
-            }
-        }
-
-        Ok(None)
     }
 
     fn search_file_in_folder<P: AsRef<Path>>(

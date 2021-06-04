@@ -1,5 +1,7 @@
 #[cfg(windows)]
 extern crate winapi;
+#[cfg(windows)]
+use crate::knowndlls;
 use crate::{apiset, LookupError};
 use fs_err as fs;
 use std::collections::HashMap;
@@ -22,7 +24,7 @@ use std::path::{Path, PathBuf};
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
     pub apiset_map: Option<apiset::ApisetMap>,
-    pub known_dlls: Option<Vec<PathBuf>>,
+    pub known_dlls: Option<HashMap<String, PathBuf>>,
     pub win_dir: PathBuf,
     pub sys_dir: PathBuf,
     // sys16_dir ignored, since it is not supported on 64-bit systems
@@ -32,9 +34,6 @@ pub struct WindowsSystem {
 impl WindowsSystem {
     #[cfg(windows)]
     pub fn current() -> Result<Self, LookupError> {
-        // TODO: read known dlls from HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs,
-        // and mark their dependencies (which are not listed there) as known DLLs as well
-        // https://lucasg.github.io/2017/06/07/listing-known-dlls/
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
         let win_dir = get_windows_directory()?;
         let sys_dir = get_system_directory()?;
@@ -54,10 +53,15 @@ impl WindowsSystem {
                     .collect())
             })
             .ok();
+        let known_dlls = knowndlls::get_known_dlls().ok().map(|v| {
+            v.iter()
+                .map(|kd| (kd.to_lowercase(), sys_dir.join(kd)))
+                .collect()
+        });
         Ok(Self {
             safe_dll_search_mode_on: None,
-            known_dlls: None,
             apiset_map: apiset,
+            known_dlls,
             win_dir,
             sys_dir,
             system_path: path,

@@ -1,6 +1,8 @@
 extern crate thiserror;
 
 mod apiset;
+#[cfg(windows)]
+mod knowndlls;
 mod runner;
 mod system;
 

@@ -141,7 +141,7 @@ Help is welcome in the form of issues and pull request!
     - [ ] visualization of library symbols with address/ordinal
     - [x] support of API sets
     - [ ] support of manifests
-    - [ ] support of KnownDLLs
+    - [x] support of KnownDLLs
     - [ ] release on package managers
       - [x] crates.io
       - [ ] Chocolatey
@@ -162,7 +162,7 @@ Help is welcome in the form of issues and pull request!
 ## Limitations
 - `LoadLibraryEx` and similar mechanism can't be inspected without letting the program run. 
   This limitation is common to other similar tools that recursively scan executables files and parse their import tables.  
-- no support yet for manifests or "known DLLs". You can take a look at [Dependencies](https://github.com/lucasg/Dependencies) instead  
+- no support yet for application manifests. You can take a look at [Dependencies](https://github.com/lucasg/Dependencies) instead  
 - the dependencies of system DLLs are not recursed into, for performance reasons; however, you can usually take their correctness for granted 
 
 ## Acknowledgements

@@ -67,7 +67,18 @@ fn visit_depth_first(
                     "not searched".to_owned()
                 }
             };
-            println!("{}{} => {}", "\t".repeat(current_depth), e.dllname, folder);
+            let extra_tag = if e.details.as_ref().map(|d| d.is_known_dll).unwrap_or(false) {
+                "[Known DLL]"
+            } else {
+                ""
+            };
+            println!(
+                "{}{} => {} {}",
+                "\t".repeat(current_depth),
+                e.dllname,
+                folder,
+                extra_tag
+            );
 
             if let Some(details) = &e.details {
                 if let Some(dependencies) = &details.dependencies {

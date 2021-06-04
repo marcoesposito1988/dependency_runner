@@ -1,7 +1,6 @@
 use crate::common::LookupError;
 use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
 use crate::lookup_path::{LookupPath, LookupPathEntry};
-use crate::query::LookupQuery;
 use crate::{pe, readable_canonical_path};
 
 #[derive(Debug)]
@@ -101,7 +100,8 @@ impl<'a> Runner<'a> {
                     let dllname =
                         pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
                     let is_system = r.location.is_system();
-                    let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet);
+                    let is_api_set = r.location == LookupPathEntry::ApiSet;
+                    let is_known_dll = r.location == LookupPathEntry::KnownDLLs;
                     let dependencies = if is_api_set {
                         self.context
                             .query
@@ -149,7 +149,7 @@ impl<'a> Runner<'a> {
                         details: Some(ExecutableDetails {
                             is_api_set,
                             is_system,
-                            is_known_dll: false, // TODO
+                            is_known_dll,
                             full_path: r.fullpath,
                             dependencies,
                             symbols,
