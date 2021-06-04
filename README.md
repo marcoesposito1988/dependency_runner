@@ -5,6 +5,16 @@
 
 ldd for Windows - and more!
 
+## Features
+- portable: debug Windows DLL loading issues from Linux or macOS!
+- ergonomic CLI
+- readable report of missing libraries and symbols
+- JSON output
+- support for API sets and KnownDLLs (Windows only, at least for now)
+- support for Dependency Walker's `.dwp` files
+- support for Microsoft Visual Studio's `.vcxproj` and `.vcxproj.user` files
+
+
 Try it out:
 ```text
 dependency_runner> cargo run --bin deprun -- test_data\test_project1\DepRunTest\build\DepRunTest\Debug\DepRunTest.exe --check-symbols --userpath test_data\test_project1\DepRunTestLibWrong\build\Debug
@@ -53,6 +63,7 @@ on a neighboring Windows installation from another operating system, or to ignor
 system libraries if no such partition is available on the system. The example above should 
 work on any operating system.
 
+
 ## Getting started
 ### Binary releases (any OS)
 - download the binaries for your OS from the [GitHub Releases page](https://github.com/marcoesposito1988/dependency_runner/releases)
@@ -98,7 +109,7 @@ Default behavior:
 
 -->
 
-#### Checking the symbols     
+#### Checking for missing symbols     
 ```bash
 deprun --check-symbols path/to/your/executable.exe
 ```
@@ -137,11 +148,11 @@ Help is welcome in the form of issues and pull request!
     - [x] extraction of symbols from DLLs
     - [x] check of imported/exported symbols correspondency down the dependency tree
 - v 0.2.0
-    - [ ] parallelization across multiple threads (if ever necessary)
-    - [ ] visualization of library symbols with address/ordinal
     - [x] support of API sets
-    - [ ] support of manifests
     - [x] support of KnownDLLs
+    - [ ] visualization of library symbols with address/ordinal
+- v 0.3.0
+    - [ ] support of manifests
     - [ ] release on package managers
       - [x] crates.io
       - [ ] Chocolatey
@@ -152,7 +163,8 @@ Help is welcome in the form of issues and pull request!
         - [ ] subset of verbose output
         - [ ] unused symbols?
         - [ ] relocation?
-- v 0.3.0
+- v 0.x.0
+    - [ ] parallelization across multiple threads (if ever necessary)
     - [ ] `dependency_runner` GUI?
         - [ ] drag-and-drop input of executables
         - [ ] PATH editing
