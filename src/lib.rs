@@ -20,7 +20,7 @@ pub use pe::demangle_symbol;
 pub use query::LookupQuery;
 pub use system::WindowsSystem;
 
-pub fn lookup(query: &LookupQuery, context: LookupPath) -> Result<Executables, LookupError> {
-    let mut wq = runner::Runner::new(query, context);
+pub fn lookup(context: &LookupPath) -> Result<Executables, LookupError> {
+    let mut wq = runner::Runner::new(context);
     wq.run()
 }

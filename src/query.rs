@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// Complete specification of a search task
 #[derive(Clone, Debug)]
 pub struct LookupQuery {
-    /// Path to the root of a Windows installation
+    /// Description of a Windows system (notable paths and data structures involved in DLL lookup)
     pub system: Option<WindowsSystem>,
     /// Additional executable search path set by the user
     pub user_path: Vec<PathBuf>,

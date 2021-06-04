@@ -353,13 +353,39 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
+    #[cfg(not(windows))]
+    let context = dependency_runner::lookup_path::LookupPath::new(query);
+
+    #[cfg(windows)]
+    let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
+        dependency_runner::lookup_path::LookupPath::from_dwp_file(dwp_file_path, query)?
+    } else {
+        dependency_runner::lookup_path::LookupPath::new(query)
+    };
+
     if verbose {
         println!(
-            "Looking for dependencies of binary {}\n",
+            "Looking for dependencies of binary {}",
             readable_canonical_path(&binary_path)?
         );
-        let ctx = dependency_runner::LookupPath::new(&query);
-        let decanonicalized_path: Vec<String> = ctx
+        if let Some(kd) = context
+            .query
+            .system
+            .as_ref()
+            .and_then(|s| s.known_dlls.as_ref())
+        {
+            println!("Known DLLs: {:?}", kd.keys());
+        }
+        if context
+            .query
+            .system
+            .as_ref()
+            .map(|s| s.apiset_map.is_some())
+            .unwrap_or(false)
+        {
+            println!("API set map available");
+        }
+        let decanonicalized_path: Vec<String> = context
             .search_path()
             .iter()
             .map(|p| decanonicalize(p.to_str().unwrap()))
@@ -367,17 +393,7 @@ fn main() -> anyhow::Result<()> {
         println!("Search path: {}\n", decanonicalized_path.join(", "));
     }
 
-    #[cfg(not(windows))]
-    let context = dependency_runner::lookup_path::LookupPath::new(&query);
-
-    #[cfg(windows)]
-    let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
-        dependency_runner::lookup_path::LookupPath::from_dwp_file(dwp_file_path, &query)?
-    } else {
-        dependency_runner::lookup_path::LookupPath::new(&query)
-    };
-
-    let executables = lookup(&query, context)?;
+    let executables = lookup(&context)?;
 
     let sorted_executables = executables.sorted_by_first_appearance();
 
@@ -407,13 +423,13 @@ fn main() -> anyhow::Result<()> {
     // printing depth-first
     println!();
     if let Some(root) = executables.get_root()? {
-        visit_depth_first(root, 0, &executables, &query, print_system_dlls);
+        visit_depth_first(root, 0, &executables, &context.query, print_system_dlls);
     }
 
     if check_symbols {
         println!("\nChecking symbols...\n");
 
-        let sym_check = executables.check();
+        let sym_check = executables.check(context.query.extract_symbols);
         match sym_check {
             Ok(report) => {
                 if !report.not_found_libraries.is_empty() {

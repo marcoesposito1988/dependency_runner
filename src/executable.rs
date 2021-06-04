@@ -74,15 +74,12 @@ impl ExecutablesCheckReport {
 /// Collection of Executable objects, result of a DLL search
 #[derive(Debug, Clone)]
 pub struct Executables {
-    /// Query used to generate this data
-    pub query: LookupQuery,
     index: std::collections::HashMap<String, Executable>,
 }
 
 impl Executables {
-    pub fn new(query: LookupQuery) -> Self {
+    pub fn new() -> Self {
         Self {
-            query,
             index: std::collections::HashMap::new(),
         }
     }
@@ -132,10 +129,10 @@ impl Executables {
     }
 
     /// Check that all referenced DLLs are found, and (if available) that imported symbols are present
-    pub fn check(&self) -> Result<ExecutablesCheckReport, LookupError> {
+    pub fn check(&self, extract_symbols: bool) -> Result<ExecutablesCheckReport, LookupError> {
         let mut report = ExecutablesCheckReport::new();
 
-        if self.query.extract_symbols {
+        if extract_symbols {
             let symbols_report = self
                 .index
                 .values()
@@ -305,7 +302,7 @@ mod tests {
         let exe_path =
             d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
         let q = LookupQuery::deduce_from_executable_location(&exe_path)?;
-        let exes = Executables::new(q);
+        let exes = Executables::new();
         assert!(!exes.contains("NonExistingExecutable.exe"));
 
         assert!(exes.get("NonExistingExecutable.exe").is_none());
@@ -325,8 +322,8 @@ mod tests {
 
         let mut query = LookupQuery::deduce_from_executable_location(&exe_path)?;
         query.skip_system_dlls = true;
-        let context = LookupPath::new(&query);
-        let mut runner = Runner::new(&query, context);
+        let context = LookupPath::new(query);
+        let mut runner = Runner::new(&context);
         let exes = runner.run()?;
 
         assert!(exes.contains("DepRunTest.exe"));

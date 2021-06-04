@@ -12,20 +12,18 @@ struct Job {
 
 /// Finds the dependencies of the specified executable within the given context
 /// The dependencies are resolved recursively, in a breadth-first fashion.
-pub(crate) struct Runner {
-    query: LookupQuery,
-    context: LookupPath,
+pub(crate) struct Runner<'a> {
+    context: &'a LookupPath,
     executables_to_lookup: Vec<Job>,
     executables_found: Executables, // using lowercase filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
 }
 
-impl Runner {
-    pub(crate) fn new(query: &LookupQuery, context: LookupPath) -> Self {
+impl<'a> Runner<'a> {
+    pub(crate) fn new(context: &'a LookupPath) -> Self {
         Self {
             context,
-            query: query.clone(),
             executables_to_lookup: Vec::new(),
-            executables_found: Executables::new(query.clone()),
+            executables_found: Executables::new(),
         }
     }
 
@@ -70,20 +68,22 @@ impl Runner {
 
     pub fn run(&mut self) -> Result<Executables, LookupError> {
         let filename = self
+            .context
             .query
             .target_exe
             .file_name()
             .map(|s| s.to_str())
             .flatten()
             .ok_or(LookupError::ScanError(
-                "could not open file ".to_owned() + self.query.target_exe.to_str().unwrap_or(""),
+                "could not open file ".to_owned()
+                    + self.context.query.target_exe.to_str().unwrap_or(""),
             ))?
             .to_owned();
 
         self.enqueue(&filename, 0);
 
         while let Some(lookup_query) = self.pop() {
-            if lookup_query.depth <= self.query.max_depth.unwrap_or(usize::MAX) {
+            if lookup_query.depth <= self.context.query.max_depth.unwrap_or(usize::MAX) {
                 // don't search again if we already found the executable
                 if self.executables_found.contains(&lookup_query.dllname) {
                     continue;
@@ -104,8 +104,10 @@ impl Runner {
                     let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet);
                     let dependencies = if is_api_set {
                         self.context
-                            .apiset_map
+                            .query
+                            .system
                             .as_ref()
+                            .and_then(|s| s.apiset_map.as_ref())
                             .map(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
                             .flatten()
                     } else {
@@ -116,7 +118,7 @@ impl Runner {
                             Some(pe::read_dependencies(&pefile)?)
                         }
                     };
-                    let symbols = if !is_api_set && self.query.extract_symbols {
+                    let symbols = if !is_api_set && self.context.query.extract_symbols {
                         let exported = pe::read_exports(&pefile);
                         let imported = pe::read_imports(&pefile);
                         if exported.is_ok() && imported.is_ok() {
@@ -185,8 +187,8 @@ mod tests {
 
         let mut query = LookupQuery::deduce_from_executable_location(exe_path)?;
         query.skip_system_dlls = true;
-        let context = LookupPath::new(&query);
-        let mut runner = Runner::new(&query, context);
+        let context = LookupPath::new(query);
+        let mut runner = Runner::new(&context);
         let res = runner.run()?;
         let sorted = res.sorted_by_first_appearance();
         let sorted_names: HashSet<&str> = sorted

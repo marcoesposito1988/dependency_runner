@@ -63,14 +63,16 @@ pub struct LookupResult {
 }
 
 /// Sorted list of directories to be looked up when searching for a DLL
+/// It is built from a query, depending on the current system configuration
+/// (availability of a Windows root, and its configuration that influences the lookup)
 pub struct LookupPath {
-    pub apiset_map: Option<ApisetMap>,
+    pub query: LookupQuery,
     pub entries: Vec<LookupPathEntry>,
     fs_cache: std::cell::RefCell<WinFileSystemCache>,
 }
 
 impl LookupPath {
-    pub fn new(query: &LookupQuery) -> Self {
+    pub fn new(query: LookupQuery) -> Self {
         let entries = if let Some(system) = &query.system {
             let system_entries = vec![
                 LookupPathEntry::SystemDir(system.sys_dir.clone()),
@@ -114,7 +116,7 @@ impl LookupPath {
         };
 
         Self {
-            apiset_map: query.system.as_ref().and_then(|s| s.apiset_map.clone()),
+            query,
             entries,
             fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
         }
@@ -188,7 +190,7 @@ impl LookupPath {
     /// Build a LookupPath from the content of a Dependency Walker .dwp file
     pub fn from_dwp_file<P: AsRef<Path>>(
         dwp_path: P,
-        q: &LookupQuery,
+        query: LookupQuery,
     ) -> Result<Self, LookupError> {
         // https://www.dependencywalker.com/help/html/path_files.htm
         let comment_chars = [':', ';', '/', '\'', '#'];
@@ -199,10 +201,10 @@ impl LookupPath {
             .collect();
         let entries_vecs = lines
             .iter()
-            .map(|e| Self::dwp_string_to_context_entry(e, q))
+            .map(|e| Self::dwp_string_to_context_entry(e, &query))
             .collect::<Result<Vec<Vec<LookupPathEntry>>, LookupError>>()?;
         Ok(Self {
-            apiset_map: q.system.as_ref().and_then(|s| s.apiset_map.clone()),
+            query,
             entries: entries_vecs.concat(),
             fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
         })
@@ -220,7 +222,12 @@ impl LookupPath {
         //     return known_dlls[library];
         // }
         // API set: return location of DLL on disk, although useless, to show it in the results
-        if let Some(apisetmap) = self.apiset_map.as_ref() {
+        if let Some(apisetmap) = self
+            .query
+            .system
+            .as_ref()
+            .and_then(|s| s.apiset_map.as_ref())
+        {
             let apiset_dll_name = library.to_lowercase();
             if apisetmap.contains_key(apiset_dll_name.trim_end_matches(".dll")) {
                 if let Some(system32_dir) = self

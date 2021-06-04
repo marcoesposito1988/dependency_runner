@@ -78,8 +78,8 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let context = LookupPath::new(&query);
-    let executables = lookup(&query, context)?;
+    let context = LookupPath::new(query);
+    let executables = lookup(&context)?;
 
     // printing in depth order
     let sorted_executables: Vec<&Executable> = executables.sorted_by_first_appearance();
