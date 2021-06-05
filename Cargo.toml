@@ -1,7 +1,7 @@
 [package]
 name = "dependency_runner"
 description = "ldd for Windows - and more!"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Marco Esposito <esposito@imfusion.com>"]
 edition = "2018"
 license = "LGPL-3.0-only"

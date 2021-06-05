@@ -150,9 +150,9 @@ Help is welcome in the form of issues and pull request!
 - v 0.2.0
     - [x] support of API sets
     - [x] support of KnownDLLs
-    - [ ] visualization of library symbols with address/ordinal
 - v 0.3.0
     - [ ] support of manifests
+    - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers
       - [x] crates.io
       - [ ] Chocolatey

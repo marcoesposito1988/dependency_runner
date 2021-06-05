@@ -1,3 +1,8 @@
+# 0.2.0
+
+- Added support for API sets
+- Added support for KnownDLLs 
+
 # 0.1.0
 
 First released version
