@@ -3,9 +3,10 @@ extern crate dependency_runner;
 use clap::{App, Arg};
 use fs_err as fs;
 
+use dependency_runner::path::LookupPath;
+use dependency_runner::runner::run;
 use dependency_runner::{
-    decanonicalize, lookup, path_to_string, readable_canonical_path, Executable, LookupPath,
-    LookupQuery, WindowsSystem,
+    decanonicalize, path_to_string, readable_canonical_path, Executable, LookupQuery, WindowsSystem,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -78,8 +79,8 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let context = LookupPath::new(query);
-    let executables = lookup(&context)?;
+    let lookup_path = LookupPath::deduce(&query);
+    let executables = run(&query, &lookup_path)?;
 
     // printing in depth order
     let sorted_executables: Vec<&Executable> = executables.sorted_by_first_appearance();

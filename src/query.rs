@@ -4,25 +4,35 @@ use crate::vcx::{VcxDebuggingConfiguration, VcxExecutableInformation};
 use fs_err as fs;
 use std::path::{Path, PathBuf};
 
-/// Complete specification of a search task
 #[derive(Clone, Debug)]
-pub struct LookupQuery {
-    /// Description of a Windows system (notable paths and data structures involved in DLL lookup)
-    pub system: Option<WindowsSystem>,
-    /// Additional executable search path set by the user
-    pub user_path: Vec<PathBuf>,
+pub struct LookupTarget {
     /// Path to the target executable
     pub target_exe: PathBuf,
-    /// Parent directory of target_exe, cached
+    /// Parent directory of target_exe, cached for performance purposes
     pub app_dir: PathBuf,
     /// Working directory as it should appear in the search path
     pub working_dir: PathBuf,
+    /// Additional executable search path set by the user
+    pub user_path: Vec<PathBuf>,
+}
+
+#[derive(Clone, Debug)]
+pub struct LookupParameters {
     /// Maximum library recursion depth for the search
     pub max_depth: Option<usize>,
     /// Skip searching dependencies of DLLs found in system directories
     pub skip_system_dlls: bool,
     /// Extract symbols from found DLLs
     pub extract_symbols: bool,
+}
+
+/// Complete specification of a search task
+#[derive(Clone, Debug)]
+pub struct LookupQuery {
+    /// Description of a Windows system (notable paths and data structures involved in DLL lookup)
+    pub system: Option<WindowsSystem>,
+    pub target: LookupTarget,
+    pub parameters: LookupParameters,
 }
 
 impl LookupQuery {
@@ -42,13 +52,17 @@ impl LookupQuery {
             ))?;
         Ok(Self {
             system: Some(WindowsSystem::current()?),
-            user_path: vec![],
-            target_exe: target_exe.as_ref().into(),
-            app_dir: app_dir.canonicalize()?,
-            working_dir: app_dir.canonicalize()?,
-            max_depth: None,
-            skip_system_dlls: false,
-            extract_symbols: false,
+            target: LookupTarget {
+                user_path: vec![],
+                target_exe: target_exe.as_ref().into(),
+                app_dir: app_dir.canonicalize()?,
+                working_dir: app_dir.canonicalize()?,
+            },
+            parameters: LookupParameters {
+                max_depth: None,
+                skip_system_dlls: false,
+                extract_symbols: false,
+            },
         })
     }
 
@@ -68,13 +82,17 @@ impl LookupQuery {
             ))?;
         Ok(Self {
             system: WindowsSystem::from_exe_location(&target_exe)?,
-            user_path: Vec::new(),
-            target_exe: target_exe.as_ref().to_owned(),
-            app_dir: app_dir.to_owned(),
-            working_dir: app_dir.to_owned(),
-            max_depth: None,
-            skip_system_dlls: false,
-            extract_symbols: false,
+            target: LookupTarget {
+                user_path: Vec::new(),
+                target_exe: target_exe.as_ref().to_owned(),
+                app_dir: app_dir.to_owned(),
+                working_dir: app_dir.to_owned(),
+            },
+            parameters: LookupParameters {
+                max_depth: None,
+                skip_system_dlls: false,
+                extract_symbols: false,
+            },
         })
     }
 
@@ -86,10 +104,10 @@ impl LookupQuery {
         debugging_configuration: &VcxDebuggingConfiguration,
     ) {
         if let Some(path) = &debugging_configuration.path {
-            self.user_path.extend(path.clone());
+            self.target.user_path.extend(path.clone());
         }
         if let Some(working_dir) = &debugging_configuration.working_directory {
-            self.working_dir = working_dir.clone();
+            self.target.working_dir = working_dir.clone();
         }
     }
 
@@ -114,13 +132,17 @@ impl LookupQuery {
 
         let mut ret = Self {
             system,
-            user_path: Vec::new(),
-            target_exe: exe_path.to_owned(),
-            app_dir: app_dir.to_owned(),
-            working_dir: app_dir.to_owned(),
-            max_depth: None,
-            skip_system_dlls: false,
-            extract_symbols: false,
+            target: LookupTarget {
+                user_path: Vec::new(),
+                target_exe: exe_path.to_owned(),
+                app_dir: app_dir.to_owned(),
+                working_dir: app_dir.to_owned(),
+            },
+            parameters: LookupParameters {
+                max_depth: None,
+                skip_system_dlls: false,
+                extract_symbols: false,
+            },
         };
 
         if let Some(debugging_config) = &exe_info.debugging_configuration {
@@ -145,17 +167,17 @@ mod tests {
         let exe_path = d.join(relative_path);
 
         let query = LookupQuery::deduce_from_executable_location(&exe_path)?;
-        assert_eq!(query.skip_system_dlls, false);
-        assert!(&query.target_exe.ends_with(relative_path));
+        assert_eq!(query.parameters.skip_system_dlls, false);
+        assert!(&query.target.target_exe.ends_with(relative_path));
         assert_eq!(
-            &query.working_dir,
+            &query.target.working_dir,
             &fs::canonicalize(&exe_path.parent().unwrap())?
         );
         assert_eq!(
-            &query.app_dir,
+            &query.target.app_dir,
             &fs::canonicalize(&exe_path.parent().unwrap())?
         );
-        assert!(&query.max_depth.is_none());
+        assert!(&query.parameters.max_depth.is_none());
         #[cfg(windows)]
         {
             use crate::system::WindowsSystem;

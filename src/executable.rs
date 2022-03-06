@@ -46,7 +46,7 @@ pub struct ExecutableSymbols {
 pub struct ExecutablesCheckReport {
     /// Map from dependent to list of non found dependees
     pub not_found_libraries: HashMap<String, HashSet<String>>,
-    /// Map from importer to list of non found imported symbols, grouped by dependended DLL
+    /// Map from importer to list of non found imported symbols, grouped by dependent DLL
     pub not_found_symbols: Option<HashMap<String, HashMap<String, HashSet<String>>>>,
 }
 
@@ -288,9 +288,9 @@ impl Executables {
 
 #[cfg(test)]
 mod tests {
-    use crate::lookup_path::LookupPath;
+    use crate::path::LookupPath;
     use crate::query::LookupQuery;
-    use crate::runner::Runner;
+    use crate::runner::run;
     use crate::{Executables, LookupError};
     use fs_err as fs;
     use std::collections::HashSet;
@@ -317,10 +317,9 @@ mod tests {
             d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
 
         let mut query = LookupQuery::deduce_from_executable_location(&exe_path)?;
-        query.skip_system_dlls = true;
-        let context = LookupPath::new(query);
-        let mut runner = Runner::new(&context);
-        let exes = runner.run()?;
+        query.parameters.skip_system_dlls = true;
+        let context = LookupPath::deduce(&query);
+        let exes = run(&query, &context)?;
 
         assert!(exes.contains("DepRunTest.exe"));
         assert!(exes.contains("depruntest.exe"));

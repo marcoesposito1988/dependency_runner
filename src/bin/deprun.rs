@@ -1,11 +1,12 @@
 extern crate dependency_runner;
 
+use dependency_runner::path::LookupPath;
 #[cfg(windows)]
 use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
 #[cfg(windows)]
 use dependency_runner::LookupError;
-use dependency_runner::{
-    decanonicalize, demangle_symbol, lookup, path_to_string, readable_canonical_path, Executable,
+pub(crate) use dependency_runner::{
+    decanonicalize, demangle_symbol, path_to_string, readable_canonical_path, Executable,
     Executables, LookupQuery, WindowsSystem,
 };
 
@@ -51,11 +52,11 @@ fn pick_configuration(
 fn visit_depth_first(
     e: &Executable,
     current_depth: usize,
+    max_depth: Option<usize>,
     exes: &Executables,
-    query: &LookupQuery,
     print_system_dlls: bool,
 ) {
-    if query.max_depth.map(|d| current_depth < d).unwrap_or(true) {
+    if max_depth.map(|d| current_depth < d).unwrap_or(true) {
         if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls) {
             let folder = if !e.found {
                 "not found".to_owned()
@@ -87,8 +88,8 @@ fn visit_depth_first(
                             visit_depth_first(
                                 de,
                                 current_depth + 1,
+                                max_depth,
                                 exes,
-                                query,
                                 print_system_dlls,
                             );
                         }
@@ -299,10 +300,10 @@ fn main() -> anyhow::Result<()> {
     };
 
     if let Ok(max_depth) = value_t!(matches.value_of("MAX_DEPTH"), usize) {
-        query.max_depth = Some(max_depth);
+        query.parameters.max_depth = Some(max_depth);
     }
 
-    query.extract_symbols = check_symbols;
+    query.parameters.extract_symbols = check_symbols;
 
     // overrides (must be last)
 
@@ -322,12 +323,12 @@ fn main() -> anyhow::Result<()> {
     }
 
     if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
-        query.working_dir = PathBuf::from(overridden_workdir);
+        query.target.working_dir = PathBuf::from(overridden_workdir);
     } else {
         if verbose {
             println!(
                 "Working directory not specified, assuming directory of executable: {}",
-                decanonicalize(query.working_dir.to_str().unwrap_or("---"))
+                decanonicalize(query.target.working_dir.to_str().unwrap_or("---"))
             );
         }
     }
@@ -344,12 +345,13 @@ fn main() -> anyhow::Result<()> {
                 }
             })
             .collect::<Result<Vec<_>, std::io::Error>>()?;
-        query.user_path.extend(canonicalized_path);
+        query.target.user_path.extend(canonicalized_path);
     } else {
         if verbose {
             #[cfg(windows)]
             {
                 let decanonicalized_path: Vec<String> = query
+                    .target
                     .user_path
                     .iter()
                     .map(|p| decanonicalize(p.to_str().unwrap()))
@@ -360,18 +362,21 @@ fn main() -> anyhow::Result<()> {
                 );
             }
             #[cfg(not(windows))]
-            println!("User path not specified, assumed: {:?}", query.user_path);
+            println!(
+                "User path not specified, assumed: {:?}",
+                query.target.user_path
+            );
         }
     };
 
     #[cfg(not(windows))]
-    let context = dependency_runner::lookup_path::LookupPath::new(query);
+    let lookup_path = LookupPath::deduce(&query);
 
     #[cfg(windows)]
-    let context = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
-        dependency_runner::lookup_path::LookupPath::from_dwp_file(dwp_file_path, query)?
+    let lookup_path = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
+        dependency_runner::path::LookupPath::from_dwp_file(dwp_file_path, &query)?
     } else {
-        dependency_runner::lookup_path::LookupPath::new(query)
+        dependency_runner::path::LookupPath::deduce(&query)
     };
 
     if verbose {
@@ -379,16 +384,10 @@ fn main() -> anyhow::Result<()> {
             "Looking for dependencies of binary {}",
             readable_canonical_path(&binary_path)?
         );
-        if let Some(kd) = context
-            .query
-            .system
-            .as_ref()
-            .and_then(|s| s.known_dlls.as_ref())
-        {
-            println!("Known DLLs: {:?}", kd.keys());
+        if let Some(kd) = query.system.as_ref().and_then(|s| s.known_dlls.as_ref()) {
+            println!("Known DLLs: {:?}", kd.entries.keys());
         }
-        if context
-            .query
+        if query
             .system
             .as_ref()
             .map(|s| s.apiset_map.is_some())
@@ -396,7 +395,8 @@ fn main() -> anyhow::Result<()> {
         {
             println!("API set map available");
         }
-        let decanonicalized_path: Vec<String> = context
+        let lookup_path = LookupPath::deduce(&query);
+        let decanonicalized_path: Vec<String> = lookup_path
             .search_path()
             .iter()
             .map(|p| decanonicalize(p.to_str().unwrap()))
@@ -404,7 +404,7 @@ fn main() -> anyhow::Result<()> {
         println!("Search path: {}\n", decanonicalized_path.join(", "));
     }
 
-    let executables = lookup(&context)?;
+    let executables = dependency_runner::runner::run(&query, &lookup_path)?;
 
     let sorted_executables = executables.sorted_by_first_appearance();
 
@@ -434,13 +434,19 @@ fn main() -> anyhow::Result<()> {
     // printing depth-first
     println!();
     if let Some(root) = executables.get_root()? {
-        visit_depth_first(root, 0, &executables, &context.query, print_system_dlls);
+        visit_depth_first(
+            root,
+            0,
+            query.parameters.max_depth,
+            &executables,
+            print_system_dlls,
+        );
     }
 
     if check_symbols {
         println!("\nChecking symbols...\n");
 
-        let sym_check = executables.check(context.query.extract_symbols);
+        let sym_check = executables.check(query.parameters.extract_symbols);
         match sym_check {
             Ok(report) => {
                 if !report.not_found_libraries.is_empty() {

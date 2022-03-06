@@ -11,6 +11,24 @@ use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct KnownDLLList {
+    pub entries: HashMap<String, PathBuf>,
+}
+
+impl KnownDLLList {
+    // looks for a DLL by name
+    // first looks in the known dlls, then in the api set, then in the concrete entries
+    pub fn search_dll_in_known_dlls(&self, library: &str) -> Result<Option<PathBuf>, LookupError> {
+        if let Some(lp) = self.entries.get(&library.to_ascii_lowercase()) {
+            return Ok(Some(lp.clone()));
+        } else {
+            // DLL not found among the KnownDLLs
+            Ok(None)
+        }
+    }
+}
+
 // supported DLL search modes: standard for desktop application, safe or unsafe, as specified by the registry (if running on Windows)
 // TODO: read HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode  and pick mode accordingly
 // the other modes are activated programmatically, and there is no hope to be able to handle that properly
@@ -24,7 +42,7 @@ use std::path::{Path, PathBuf};
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
     pub apiset_map: Option<apiset::ApisetMap>,
-    pub known_dlls: Option<HashMap<String, PathBuf>>,
+    pub known_dlls: Option<KnownDLLList>,
     pub win_dir: PathBuf,
     pub sys_dir: PathBuf,
     // sys16_dir ignored, since it is not supported on 64-bit systems
@@ -53,10 +71,11 @@ impl WindowsSystem {
                     .collect())
             })
             .ok();
-        let known_dlls = knowndlls::get_known_dlls().ok().map(|v| {
-            v.iter()
+        let known_dlls = knowndlls::get_known_dlls().ok().map(|v| KnownDLLList {
+            entries: v
+                .iter()
                 .map(|kd| (kd.to_lowercase(), sys_dir.join(kd)))
-                .collect()
+                .collect(),
         });
         Ok(Self {
             safe_dll_search_mode_on: None,

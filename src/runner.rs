@@ -1,7 +1,7 @@
 use crate::common::LookupError;
 use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
-use crate::lookup_path::{LookupPath, LookupPathEntry};
-use crate::{pe, readable_canonical_path};
+use crate::path::{LookupPath, LookupPathEntry};
+use crate::{pe, readable_canonical_path, LookupQuery};
 
 #[derive(Debug)]
 struct Job {
@@ -11,138 +11,95 @@ struct Job {
 
 /// Finds the dependencies of the specified executable within the given context
 /// The dependencies are resolved recursively, in a breadth-first fashion.
-pub(crate) struct Runner<'a> {
-    context: &'a LookupPath,
-    executables_to_lookup: Vec<Job>,
-    executables_found: Executables, // using lowercase filename as key, assuming that we can only find a DLL given a name; if this changes, use the path instead
-}
 
-impl<'a> Runner<'a> {
-    pub(crate) fn new(context: &'a LookupPath) -> Self {
-        Self {
-            context,
-            executables_to_lookup: Vec::new(),
-            executables_found: Executables::new(),
-        }
-    }
+pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables, LookupError> {
+    let mut executables_to_lookup: Vec<Job> = Vec::new();
+    let mut executables_found = Executables::new();
 
-    // the user enqueues an executable; the workers enqueue the dependencies of those that were found
-    // (skip the dependencies that have already been found)
-    fn enqueue(&mut self, executable_name: &str, depth: usize) {
-        if !self.executables_found.contains(executable_name) {
-            self.executables_to_lookup.push(Job {
-                dllname: executable_name.to_owned(),
-                depth,
-            })
-        }
-    }
+    let filename = query
+        .target
+        .target_exe
+        .file_name()
+        .map(|s| s.to_str())
+        .flatten()
+        .ok_or(LookupError::ScanError(
+            "could not open file ".to_owned() + query.target.target_exe.to_str().unwrap_or(""),
+        ))?
+        .to_owned();
 
-    // the workers fetch work to be done (the name of a DLL to be found)
-    fn pop(&mut self) -> Option<Job> {
-        self.executables_to_lookup.pop()
-    }
+    executables_to_lookup.push(Job {
+        dllname: filename.to_owned(),
+        depth: 0,
+    });
 
-    // the workers register the executable that was found for the given name; the function checks for uniqueness
-    fn register_finding(&mut self, new_finding: Executable) {
-        if let Some(older_finding) = self.executables_found.get(&new_finding.dllname) {
-            eprintln!(
-                "Found two DLLs with the same name! {:?} and {:?}",
-                new_finding
-                    .details
-                    .as_ref()
-                    .map(|d| readable_canonical_path(&d.full_path).ok())
-                    .flatten()
-                    .unwrap_or(new_finding.dllname),
-                older_finding
-                    .details
-                    .as_ref()
-                    .map(|d| readable_canonical_path(&d.full_path).ok())
-                    .flatten()
-                    .unwrap_or(older_finding.dllname.clone()),
-            );
-        } else {
-            self.executables_found.insert(new_finding);
-        }
-    }
+    while let Some(lookup_query) = executables_to_lookup.pop() {
+        if lookup_query.depth <= query.parameters.max_depth.unwrap_or(usize::MAX) {
+            // don't search again if we already found the executable
+            if executables_found.contains(&lookup_query.dllname) {
+                continue;
+            }
+            if let Some(r) = lookup_path
+                .search_dll(&lookup_query.dllname)
+                .unwrap_or(None)
+            {
+                let filemap =
+                    pelite::FileMap::open(&r.fullpath).map_err(|e| LookupError::IOError(e))?;
+                let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
+                    .map_err(|e| LookupError::PEError(e))?;
 
-    pub fn run(&mut self) -> Result<Executables, LookupError> {
-        let filename = self
-            .context
-            .query
-            .target_exe
-            .file_name()
-            .map(|s| s.to_str())
-            .flatten()
-            .ok_or(LookupError::ScanError(
-                "could not open file ".to_owned()
-                    + self.context.query.target_exe.to_str().unwrap_or(""),
-            ))?
-            .to_owned();
-
-        self.enqueue(&filename, 0);
-
-        while let Some(lookup_query) = self.pop() {
-            if lookup_query.depth <= self.context.query.max_depth.unwrap_or(usize::MAX) {
-                // don't search again if we already found the executable
-                if self.executables_found.contains(&lookup_query.dllname) {
-                    continue;
-                }
-                if let Some(r) = self
-                    .context
-                    .search_dll(&lookup_query.dllname)
-                    .unwrap_or(None)
-                {
-                    let filemap =
-                        pelite::FileMap::open(&r.fullpath).map_err(|e| LookupError::IOError(e))?;
-                    let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
-                        .map_err(|e| LookupError::PEError(e))?;
-
-                    let dllname =
-                        pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
-                    let is_system = r.location.is_system();
-                    let is_api_set = r.location == LookupPathEntry::ApiSet;
-                    let is_known_dll = r.location == LookupPathEntry::KnownDLLs;
-                    let dependencies = if is_api_set {
-                        self.context
-                            .query
-                            .system
-                            .as_ref()
-                            .and_then(|s| s.apiset_map.as_ref())
-                            .map(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
-                            .flatten()
-                    } else {
-                        if r.location.is_system() && r.location != LookupPathEntry::ApiSet {
-                            // system DLLs have just too many dependencies
-                            None
-                        } else {
-                            Some(pe::read_dependencies(&pefile)?)
-                        }
-                    };
-                    let symbols = if !is_api_set && self.context.query.extract_symbols {
-                        let exported = pe::read_exports(&pefile);
-                        let imported = pe::read_imports(&pefile);
-                        if exported.is_ok() && imported.is_ok() {
-                            Some(ExecutableSymbols {
-                                exported: exported.unwrap(),
-                                imported: imported.unwrap(),
-                            })
-                        } else {
-                            eprintln!(
-                                "Error extracting symbols of library {}",
-                                readable_canonical_path(&r.fullpath)?
-                            );
-                            None
-                        }
-                    } else {
+                let dllname = pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
+                let is_system = r.location.is_system();
+                let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet(_));
+                let is_known_dll = std::matches!(r.location, LookupPathEntry::KnownDLLs(_));
+                let dependencies = if is_api_set {
+                    query
+                        .system
+                        .as_ref()
+                        .and_then(|s| s.apiset_map.as_ref())
+                        .map(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
+                        .flatten()
+                } else {
+                    if r.location.is_system()
+                        && !std::matches!(r.location, LookupPathEntry::ApiSet(_))
+                    {
+                        // system DLLs have just too many dependencies
                         None
-                    };
+                    } else {
+                        Some(pe::read_dependencies(&pefile)?)
+                    }
+                };
+                let symbols = if !is_api_set && query.parameters.extract_symbols {
+                    let exported = pe::read_exports(&pefile);
+                    let imported = pe::read_imports(&pefile);
+                    if exported.is_ok() && imported.is_ok() {
+                        Some(ExecutableSymbols {
+                            exported: exported.unwrap(),
+                            imported: imported.unwrap(),
+                        })
+                    } else {
+                        eprintln!(
+                            "Error extracting symbols of library {}",
+                            readable_canonical_path(&r.fullpath)?
+                        );
+                        None
+                    }
+                } else {
+                    None
+                };
 
-                    if let Some(deps) = &dependencies {
-                        for d in deps {
-                            self.enqueue(&d, lookup_query.depth + 1);
+                if let Some(deps) = &dependencies {
+                    for d in deps {
+                        if !executables_found.contains(d.as_ref()) {
+                            executables_to_lookup.push(Job {
+                                dllname: d.to_owned(),
+                                depth: lookup_query.depth + 1,
+                            })
                         }
                     }
-                    self.register_finding(Executable {
+                }
+                register_finding(
+                    &mut executables_found,
+                    Executable {
                         dllname,
                         depth_first_appearance: lookup_query.depth,
                         found: true,
@@ -154,27 +111,52 @@ impl<'a> Runner<'a> {
                             dependencies,
                             symbols,
                         }),
-                    });
-                } else {
-                    self.register_finding(Executable {
+                    },
+                );
+            } else {
+                register_finding(
+                    &mut executables_found,
+                    Executable {
                         dllname: lookup_query.dllname,
                         depth_first_appearance: lookup_query.depth,
                         found: false,
                         details: None,
-                    });
-                }
+                    },
+                );
             }
         }
+    }
 
-        Ok(self.executables_found.clone())
+    Ok(executables_found)
+}
+
+fn register_finding(executables_found: &mut Executables, new_finding: Executable) {
+    if let Some(older_finding) = executables_found.get(&new_finding.dllname) {
+        eprintln!(
+            "Found two DLLs with the same name! {:?} and {:?}",
+            new_finding
+                .details
+                .as_ref()
+                .map(|d| readable_canonical_path(&d.full_path).ok())
+                .flatten()
+                .unwrap_or(new_finding.dllname),
+            older_finding
+                .details
+                .as_ref()
+                .map(|d| readable_canonical_path(&d.full_path).ok())
+                .flatten()
+                .unwrap_or(older_finding.dllname.clone()),
+        );
+    } else {
+        executables_found.insert(new_finding);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::lookup_path::LookupPath;
+    use crate::path::LookupPath;
     use crate::query::LookupQuery;
-    use crate::runner::Runner;
+    use crate::runner::run;
     use crate::LookupError;
     use std::collections::HashSet;
     use std::iter::FromIterator;
@@ -186,10 +168,9 @@ mod tests {
             d.join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
 
         let mut query = LookupQuery::deduce_from_executable_location(exe_path)?;
-        query.skip_system_dlls = true;
-        let context = LookupPath::new(query);
-        let mut runner = Runner::new(&context);
-        let res = runner.run()?;
+        query.parameters.skip_system_dlls = true;
+        let lookup_path = LookupPath::deduce(&query);
+        let res = run(&query, &lookup_path)?;
         let sorted = res.sorted_by_first_appearance();
         let sorted_names: HashSet<&str> = sorted
             .iter()
