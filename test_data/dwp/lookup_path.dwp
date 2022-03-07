@@ -1,0 +1,14 @@
+' my dwp file
+# has some comments
+SxS
+KnownDLLs
+AppDir
+32BitSysDir
+; some comment
+OSDir
+AppPath
+SysPath
+UserDir C:\Users
+: another comment
+UserDir C:\Users\user
+/ final comment

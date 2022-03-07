@@ -1,7 +1,6 @@
 use crate::query::LookupQuery;
 use crate::system::{KnownDLLList, WinFileSystemCache};
 use crate::{apiset, LookupError, WindowsSystem};
-#[cfg(windows)]
 use fs_err as fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -141,21 +140,25 @@ impl<'a> LookupPath<'a> {
         }
     }
 
-    #[cfg(windows)]
     /// Parse an entry in a .dwp file
     fn dwp_string_to_context_entry(
         s: &str,
         q: &'a LookupQuery,
     ) -> Result<Vec<LookupPathEntry<'a>>, LookupError> {
+        if s.is_empty() {
+            return Ok(vec![]);
+        }
+        if [':', ';', '/', '\'', '#'].contains(&s.chars().nth(0).unwrap()) {
+            // comment
+            return Ok(vec![]);
+        }
         match s {
             "SxS" => Ok(vec![]), // TODO?
             "KnownDLLs" => {
                 if let Some(kd) = q.system.as_ref().and_then(|s| s.known_dlls.as_ref()) {
                     Ok(vec![LookupPathEntry::KnownDLLs(kd)])
                 } else {
-                    Err(LookupError::ContextDeductionError(
-                        "No known DLLs available".to_owned(),
-                    ))
+                    Ok(vec![])
                 }
             }
             "AppDir" => Ok(vec![LookupPathEntry::ExecutableDir(
@@ -192,7 +195,6 @@ impl<'a> LookupPath<'a> {
         }
     }
 
-    #[cfg(windows)]
     /// Build a LookupPath from the content of a Dependency Walker .dwp file
     pub fn from_dwp_file<P: AsRef<Path>>(
         dwp_path: P,
@@ -301,5 +303,35 @@ impl<'a> LookupPath<'a> {
             .iter()
             .map(|s| LookupPathEntry::UserPath(s.clone()))
             .collect::<Vec<_>>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::path::LookupPath;
+    use crate::query::LookupQuery;
+    use crate::LookupError;
+
+    #[test]
+    fn parse_dwp() -> Result<(), LookupError> {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let relative_path = "test_data/dwp/lookup_path.dwp";
+        let dwp_file_path = d.join(relative_path);
+
+        let exe_relative_path =
+            "test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe";
+        let exe_path = d.join(exe_relative_path);
+
+        let query = LookupQuery::deduce_from_executable_location(&exe_path)?;
+
+        let path = LookupPath::from_dwp_file(&dwp_file_path, &query)?;
+
+        if query.system.is_some() {
+            assert_eq!(path.entries.len(), 9);
+        } else {
+            assert_eq!(path.entries.len(), 3);
+        }
+
+        Ok(())
     }
 }
