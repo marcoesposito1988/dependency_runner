@@ -44,11 +44,13 @@ pub fn decanonicalize(s: &str) -> String {
 
 /// Provide the canonical form of the Path as a string, or die trying
 pub fn readable_canonical_path<P: AsRef<Path>>(p: P) -> Result<String, LookupError> {
-    Ok(decanonicalize(fs::canonicalize(&p)?.to_str().ok_or(
-        LookupError::PathConversionError(format!(
-            "Can't compute canonic path for {:?}",
-            p.as_ref()
-        )),
+    Ok(decanonicalize(fs::canonicalize(&p)?.to_str().ok_or_else(
+        || {
+            LookupError::PathConversionError(format!(
+                "Can't compute canonic path for {:?}",
+                p.as_ref()
+            ))
+        },
     )?))
 }
 
@@ -56,18 +58,20 @@ pub fn readable_canonical_path<P: AsRef<Path>>(p: P) -> Result<String, LookupErr
 pub fn path_to_string<P: AsRef<Path>>(p: P) -> String {
     p.as_ref()
         .to_str()
-        .unwrap_or(format!("{:?}", p.as_ref()).as_ref())
-        .to_owned()
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("{:?}", p.as_ref()))
 }
 
 /// Shorthand to get some kind of readable representation of an OsStr
 pub fn osstring_to_string(p: &OsStr) -> String {
-    p.to_str().unwrap_or(format!("{:?}", p).as_ref()).to_owned()
+    p.to_str()
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("{:?}", p))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{decanonicalize, readable_canonical_path, LookupError};
+    use crate::common::{decanonicalize, readable_canonical_path, LookupError};
     use fs_err as fs;
 
     #[test]

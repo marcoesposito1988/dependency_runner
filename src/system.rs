@@ -1,8 +1,9 @@
 #[cfg(windows)]
 extern crate winapi;
+use crate::apiset;
+use crate::common::LookupError;
 #[cfg(windows)]
 use crate::knowndlls;
-use crate::{apiset, LookupError};
 use fs_err as fs;
 use std::collections::HashMap;
 #[cfg(windows)]
@@ -21,7 +22,7 @@ impl KnownDLLList {
     // first looks in the known dlls, then in the api set, then in the concrete entries
     pub fn search_dll_in_known_dlls(&self, library: &str) -> Result<Option<PathBuf>, LookupError> {
         if let Some(lp) = self.entries.get(&library.to_ascii_lowercase()) {
-            return Ok(Some(lp.clone()));
+            Ok(Some(lp.clone()))
         } else {
             // DLL not found among the KnownDLLs
             Ok(None)
@@ -192,21 +193,22 @@ impl WinFileSystemCache {
         let folder_str: String = folder
             .as_ref()
             .to_str()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not scan directory {:?}",
-                &folder.as_ref().to_str()
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!(
+                    "Could not scan directory {:?}",
+                    &folder.as_ref().to_str()
+                ))
+            })?
             .to_owned();
         if !self.files_in_dirs.contains_key(&folder_str) {
             self.scan_folder(&folder)?;
         }
-        let dir = self
-            .files_in_dirs
-            .get(&folder_str)
-            .ok_or(LookupError::ScanError(format!(
+        let dir = self.files_in_dirs.get(&folder_str).ok_or_else(|| {
+            LookupError::ScanError(format!(
                 "Could not scan directory {:?}",
                 &folder.as_ref().to_str()
-            )))?;
+            ))
+        })?;
         Ok(dir
             .get(&filename.as_ref().to_str().unwrap().to_lowercase())
             .map(|p| folder.as_ref().join(p)))
@@ -216,12 +218,14 @@ impl WinFileSystemCache {
         let folder_str: String = folder
             .as_ref()
             .to_str()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not scan directory {:?}",
-                &folder.as_ref().to_str()
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!(
+                    "Could not scan directory {:?}",
+                    &folder.as_ref().to_str()
+                ))
+            })?
             .to_owned();
-        if !self.files_in_dirs.contains_key(&folder_str) {
+        if let std::collections::hash_map::Entry::Vacant(e) = self.files_in_dirs.entry(folder_str) {
             let matching_entries: HashMap<String, PathBuf> = fs::read_dir(folder.as_ref())?
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| entry.metadata().map_or_else(|_| false, |m| m.is_file()))
@@ -232,7 +236,7 @@ impl WinFileSystemCache {
                         .map(|s| (s.to_lowercase(), entry.file_name().into()))
                 })
                 .collect();
-            self.files_in_dirs.insert(folder_str, matching_entries);
+            e.insert(matching_entries);
         }
         Ok(())
     }
@@ -240,8 +244,8 @@ impl WinFileSystemCache {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::LookupError;
     use crate::system::WinFileSystemCache;
-    use crate::LookupError;
 
     #[cfg(windows)]
     #[test]

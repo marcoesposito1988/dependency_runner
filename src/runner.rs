@@ -1,7 +1,8 @@
-use crate::common::LookupError;
+use crate::common::{readable_canonical_path, LookupError};
 use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
 use crate::path::{LookupPath, LookupPathEntry};
-use crate::{pe, readable_canonical_path, LookupQuery};
+use crate::pe;
+use crate::query::LookupQuery;
 
 #[derive(Debug)]
 struct Job {
@@ -20,15 +21,16 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
         .target
         .target_exe
         .file_name()
-        .map(|s| s.to_str())
-        .flatten()
-        .ok_or(LookupError::ScanError(
-            "could not open file ".to_owned() + query.target.target_exe.to_str().unwrap_or(""),
-        ))?
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| {
+            LookupError::ScanError(
+                "could not open file ".to_owned() + query.target.target_exe.to_str().unwrap_or(""),
+            )
+        })?
         .to_owned();
 
     executables_to_lookup.push(Job {
-        dllname: filename.to_owned(),
+        dllname: filename,
         depth: 0,
     });
 
@@ -42,12 +44,12 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 .search_dll(&lookup_query.dllname)
                 .unwrap_or(None)
             {
-                let filemap =
-                    pelite::FileMap::open(&r.fullpath).map_err(|e| LookupError::IOError(e))?;
-                let pefile = pelite::pe64::PeFile::from_bytes(&filemap)
-                    .map_err(|e| LookupError::PEError(e))?;
+                let filemap = pelite::FileMap::open(&r.fullpath).map_err(LookupError::IOError)?;
+                let pefile =
+                    pelite::pe64::PeFile::from_bytes(&filemap).map_err(LookupError::PEError)?;
 
-                let dllname = pe::read_dll_name(&pefile).unwrap_or(lookup_query.dllname.clone());
+                let dllname =
+                    pe::read_dll_name(&pefile).unwrap_or_else(|_| lookup_query.dllname.clone());
                 let is_system = r.location.is_system();
                 let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet(_));
                 let is_known_dll = std::matches!(r.location, LookupPathEntry::KnownDLLs(_));
@@ -56,17 +58,14 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                         .system
                         .as_ref()
                         .and_then(|s| s.apiset_map.as_ref())
-                        .map(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
-                        .flatten()
+                        .and_then(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
+                } else if r.location.is_system()
+                    && !std::matches!(r.location, LookupPathEntry::ApiSet(_))
+                {
+                    // system DLLs have just too many dependencies
+                    None
                 } else {
-                    if r.location.is_system()
-                        && !std::matches!(r.location, LookupPathEntry::ApiSet(_))
-                    {
-                        // system DLLs have just too many dependencies
-                        None
-                    } else {
-                        Some(pe::read_dependencies(&pefile)?)
-                    }
+                    Some(pe::read_dependencies(&pefile)?)
                 };
                 let symbols = if !is_api_set && query.parameters.extract_symbols {
                     let exported = pe::read_exports(&pefile);
@@ -137,15 +136,13 @@ fn register_finding(executables_found: &mut Executables, new_finding: Executable
             new_finding
                 .details
                 .as_ref()
-                .map(|d| readable_canonical_path(&d.full_path).ok())
-                .flatten()
+                .and_then(|d| readable_canonical_path(&d.full_path).ok())
                 .unwrap_or(new_finding.dllname),
             older_finding
                 .details
                 .as_ref()
-                .map(|d| readable_canonical_path(&d.full_path).ok())
-                .flatten()
-                .unwrap_or(older_finding.dllname.clone()),
+                .and_then(|d| readable_canonical_path(&d.full_path).ok())
+                .unwrap_or_else(|| older_finding.dllname.clone()),
         );
     } else {
         executables_found.insert(new_finding);
@@ -154,10 +151,10 @@ fn register_finding(executables_found: &mut Executables, new_finding: Executable
 
 #[cfg(test)]
 mod tests {
+    use crate::common::LookupError;
     use crate::path::LookupPath;
     use crate::query::LookupQuery;
     use crate::runner::run;
-    use crate::LookupError;
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
@@ -178,7 +175,7 @@ mod tests {
             .map(|e| e.dllname.as_ref())
             .collect();
         let expected_names: HashSet<&str> =
-            HashSet::from_iter(["DepRunTestLib.dll", "DepRunTest.exe"].iter().map(|&s| s));
+            HashSet::from_iter(["DepRunTestLib.dll", "DepRunTest.exe"].iter().copied());
         assert_eq!(sorted_names, expected_names);
 
         Ok(())

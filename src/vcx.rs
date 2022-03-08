@@ -1,5 +1,4 @@
-use crate::readable_canonical_path;
-use crate::LookupError;
+use crate::common::{readable_canonical_path, LookupError};
 use fs_err as fs;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -20,19 +19,15 @@ pub struct VcxDebuggingConfiguration {
 fn extract_config_from_node(n: &roxmltree::Node) -> Result<String, LookupError> {
     let configuration_re =
         regex::Regex::new(r"'\$\(Configuration\)(?:\|\$\(Platform\))?'=='(\w+)(?:\|\w+)?'")?;
-    let configuration_condition_text = n.attribute("Condition").ok_or(LookupError::ParseError(
-        "Failed to find Condition group".to_owned(),
-    ))?;
+    let configuration_condition_text = n
+        .attribute("Condition")
+        .ok_or_else(|| LookupError::ParseError("Failed to find Condition group".to_owned()))?;
     let config: String = configuration_re
         .captures_iter(configuration_condition_text)
-        .nth(0)
-        .ok_or(LookupError::ParseError(
-            "Failed to find configuration name".to_owned(),
-        ))?
+        .next()
+        .ok_or_else(|| LookupError::ParseError("Failed to find configuration name".to_owned()))?
         .get(1)
-        .ok_or(LookupError::ParseError(
-            "Failed to find configuration name".to_owned(),
-        ))?
+        .ok_or_else(|| LookupError::ParseError("Failed to find configuration name".to_owned()))?
         .as_str()
         .to_owned();
     Ok(config)
@@ -53,26 +48,21 @@ fn extract_debugging_configuration_from_config_node(
         .descendants()
         .find(|n| n.has_tag_name("LocalDebuggerEnvironment"))
     {
-        let environment_text = environment_node.text().ok_or(LookupError::ParseError(
-            "Failed to find LocalDebuggerEnvironment tag".to_owned(),
-        ))?;
+        let environment_text = environment_node.text().ok_or_else(|| {
+            LookupError::ParseError("Failed to find LocalDebuggerEnvironment tag".to_owned())
+        })?;
         let environment_variables: Vec<&str> = environment_text.lines().collect();
         let path_env_var = environment_variables
             .iter()
             .find(|l| l.trim_start().starts_with("PATH="))
-            .ok_or(LookupError::ParseError(
-                "Failed to find PATH variable".to_owned(),
-            ))?;
-        let path_env_var_without_varname =
-            path_env_var
-                .strip_prefix("PATH=")
-                .ok_or(LookupError::ParseError(
-                    "Failed to find LocalDebuggerEnvironment tag".to_owned(),
-                ))?;
-        let path_entries = path_env_var_without_varname.split(";");
+            .ok_or_else(|| LookupError::ParseError("Failed to find PATH variable".to_owned()))?;
+        let path_env_var_without_varname = path_env_var.strip_prefix("PATH=").ok_or_else(|| {
+            LookupError::ParseError("Failed to find LocalDebuggerEnvironment tag".to_owned())
+        })?;
+        let path_entries = path_env_var_without_varname.split(';');
         let path_entries_no_vars: Vec<PathBuf> = path_entries
-            .filter(|s| !s.contains("$") && !s.contains("%") && !s.is_empty())
-            .map(|s| PathBuf::from(s))
+            .filter(|s| !s.contains('$') && !s.contains('%') && !s.is_empty())
+            .map(PathBuf::from)
             .collect();
         ret.path = Some(path_entries_no_vars);
     }
@@ -81,14 +71,11 @@ fn extract_debugging_configuration_from_config_node(
         .descendants()
         .find(|n| n.has_tag_name("LocalDebuggerWorkingDirectory"))
     {
-        let working_directory_text =
-            working_directory_node
-                .text()
-                .ok_or(LookupError::ParseError(
-                    "Failed to find LocalDebuggerEnvironment tag".to_owned(),
-                ))?;
+        let working_directory_text = working_directory_node.text().ok_or_else(|| {
+            LookupError::ParseError("Failed to find LocalDebuggerEnvironment tag".to_owned())
+        })?;
         // TODO fetch properties from vcxproj? may get out of hand
-        if !working_directory_text.starts_with("$") {
+        if !working_directory_text.starts_with('$') {
             ret.working_directory = Some(PathBuf::from(working_directory_text));
         }
     }
@@ -111,9 +98,7 @@ pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
     let project_node = doc
         .descendants()
         .find(|n| n.has_tag_name("Project"))
-        .ok_or(LookupError::ParseError(
-            "Failed to find Project tag".to_owned(),
-        ))?;
+        .ok_or_else(|| LookupError::ParseError("Failed to find Project tag".to_owned()))?;
     let configuration_nodes: Vec<_> = project_node
         .descendants()
         .filter(|n| n.has_tag_name("PropertyGroup"))
@@ -121,7 +106,7 @@ pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
     let debugging_config_per_config: HashMap<String, VcxDebuggingConfiguration> =
         configuration_nodes
             .iter()
-            .map(|n| extract_debugging_configuration_from_config_node(n))
+            .map(extract_debugging_configuration_from_config_node)
             .filter_map(Result::ok)
             .map(|e: VcxDebuggingConfiguration| (e.configuration.clone(), e))
             .collect();
@@ -145,7 +130,7 @@ fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
         .filter(|n: &roxmltree::Node| n.has_tag_name(tag))
         .map(|n| {
             if let Some(od) = n.text() {
-                extract_config_from_node(&n).and_then(|c| Ok((c.clone(), od.to_owned())))
+                extract_config_from_node(&n).map(|c| (c, od.to_owned()))
             } else {
                 Err(LookupError::ParseError(format!("Empty {} tag", tag)))
             }
@@ -232,7 +217,7 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>(
 
 #[cfg(test)]
 mod tests {
-    use crate::LookupError;
+    use crate::common::LookupError;
 
     #[test]
     fn vcxproj() -> Result<(), LookupError> {

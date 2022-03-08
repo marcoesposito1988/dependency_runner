@@ -1,6 +1,6 @@
 extern crate msvc_demangler;
 extern crate thiserror;
-use crate::LookupError;
+use crate::common::LookupError;
 use pelite::pe64::{Pe, PeFile};
 use std::collections::{HashMap, HashSet};
 
@@ -15,13 +15,13 @@ pub fn read_dll_name(file: &PeFile) -> Result<String, LookupError> {
 /// read the names of the DLLs this executable depends on
 pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
     // Access the import directory
-    let imports = file.imports().map_err(|e| LookupError::PEError(e))?;
+    let imports = file.imports().map_err(LookupError::PEError)?;
 
     let names: Vec<&pelite::util::CStr> = imports
         .iter()
         .map(|desc| desc.dll_name())
         .collect::<Result<Vec<&pelite::util::CStr>, pelite::Error>>()
-        .map_err(|e| LookupError::PEError(e))?;
+        .map_err(LookupError::PEError)?;
 
     Ok(names
         .iter()
@@ -34,7 +34,7 @@ pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
 pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<String>>, LookupError> {
     use LookupError::PEError;
     // Access the import directory
-    let imports = file.imports().map_err(|e| PEError(e))?;
+    let imports = file.imports().map_err(PEError)?;
 
     let mut ret = HashMap::new();
 
@@ -92,7 +92,7 @@ pub fn demangle_symbol(symbol: &str) -> Result<String, LookupError> {
 #[cfg(test)]
 mod tests {
     use super::read_dependencies;
-    use crate::LookupError;
+    use crate::common::LookupError;
     use std::collections::HashSet;
 
     #[test]
@@ -100,9 +100,8 @@ mod tests {
         let cargo_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let exe_path = cargo_dir
             .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
-        let filemap = pelite::FileMap::open(&exe_path).map_err(|e| LookupError::IOError(e))?;
-        let pefile =
-            pelite::pe64::PeFile::from_bytes(&filemap).map_err(|e| LookupError::PEError(e))?;
+        let filemap = pelite::FileMap::open(&exe_path).map_err(LookupError::IOError)?;
+        let pefile = pelite::pe64::PeFile::from_bytes(&filemap).map_err(LookupError::PEError)?;
 
         let expected_exe_deps: HashSet<String> = [
             "DepRunTestLib.dll",
@@ -126,9 +125,8 @@ mod tests {
             "test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTestLib.dll",
         );
 
-        let filemap = pelite::FileMap::open(&lib_path).map_err(|e| LookupError::IOError(e))?;
-        let pefile =
-            pelite::pe64::PeFile::from_bytes(&filemap).map_err(|e| LookupError::PEError(e))?;
+        let filemap = pelite::FileMap::open(&lib_path).map_err(LookupError::IOError)?;
+        let pefile = pelite::pe64::PeFile::from_bytes(&filemap).map_err(LookupError::PEError)?;
 
         let expected_lib_deps: HashSet<String> = [
             "KERNEL32.dll",

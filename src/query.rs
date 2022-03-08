@@ -73,13 +73,12 @@ impl LookupQuery {
     pub fn deduce_from_executable_location<P: AsRef<Path>>(
         target_exe: P,
     ) -> Result<Self, LookupError> {
-        let app_dir = target_exe
-            .as_ref()
-            .parent()
-            .ok_or(LookupError::ContextDeductionError(
+        let app_dir = target_exe.as_ref().parent().ok_or_else(|| {
+            LookupError::ContextDeductionError(
                 "Could not find application directory for given executable ".to_owned()
                     + target_exe.as_ref().to_str().unwrap_or(""),
-            ))?;
+            )
+        })?;
         Ok(Self {
             system: WindowsSystem::from_exe_location(&target_exe)?,
             target: LookupTarget {
@@ -120,10 +119,12 @@ impl LookupQuery {
     ) -> Result<Self, LookupError> {
         let exe_path = fs::canonicalize(&exe_info.executable_path)?;
 
-        let app_dir = exe_path.parent().ok_or(LookupError::ContextDeductionError(
-            "Could not find application directory for given executable ".to_owned()
-                + exe_path.to_str().unwrap_or(""),
-        ))?;
+        let app_dir = exe_path.parent().ok_or_else(|| {
+            LookupError::ContextDeductionError(
+                "Could not find application directory for given executable ".to_owned()
+                    + exe_path.to_str().unwrap_or(""),
+            )
+        })?;
 
         #[cfg(windows)]
         let system = Some(WindowsSystem::current()?);
@@ -155,8 +156,8 @@ impl LookupQuery {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::LookupError;
     use crate::query::LookupQuery;
-    use crate::LookupError;
     use fs_err as fs;
 
     #[test]
@@ -167,7 +168,7 @@ mod tests {
         let exe_path = d.join(relative_path);
 
         let query = LookupQuery::deduce_from_executable_location(&exe_path)?;
-        assert_eq!(query.parameters.skip_system_dlls, false);
+        assert!(!query.parameters.skip_system_dlls);
         assert!(&query.target.target_exe.ends_with(relative_path));
         assert_eq!(
             &query.target.working_dir,

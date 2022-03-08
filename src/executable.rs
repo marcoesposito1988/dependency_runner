@@ -1,4 +1,4 @@
-use crate::LookupError;
+use crate::common::LookupError;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -50,6 +50,12 @@ pub struct ExecutablesCheckReport {
     pub not_found_symbols: Option<HashMap<String, HashMap<String, HashSet<String>>>>,
 }
 
+impl Default for ExecutablesCheckReport {
+    fn default() -> Self {
+        ExecutablesCheckReport::new()
+    }
+}
+
 impl ExecutablesCheckReport {
     pub fn new() -> Self {
         Self {
@@ -75,6 +81,12 @@ impl ExecutablesCheckReport {
 #[derive(Debug, Clone)]
 pub struct Executables {
     index: std::collections::HashMap<String, Executable>,
+}
+
+impl Default for Executables {
+    fn default() -> Self {
+        Executables::new()
+    }
 }
 
 impl Executables {
@@ -107,9 +119,9 @@ impl Executables {
             .filter(|v| v.depth_first_appearance == 0)
             .collect();
         if root_candidates.is_empty() {
-            return Err(LookupError::ScanError(format!(
-                "The executable tree has no roots"
-            )));
+            return Err(LookupError::ScanError(
+                "The executable tree has no roots".to_string(),
+            ));
         }
         if root_candidates.len() > 1 {
             let names: Vec<&str> = root_candidates.iter().map(|n| n.dllname.as_ref()).collect();
@@ -118,7 +130,7 @@ impl Executables {
                 names.join(";")
             )));
         }
-        Ok(root_candidates.first().map(|&e| e))
+        Ok(root_candidates.first().copied())
     }
 
     pub fn sorted_by_first_appearance(&self) -> Vec<&Executable> {
@@ -151,10 +163,9 @@ impl Executables {
 
     /// Check that every dependency exports the symbols imported by this file
     fn check_imports(&self, name: &str) -> Result<ExecutablesCheckReport, LookupError> {
-        let exe = self.get(name).ok_or(LookupError::ScanError(format!(
-            "Could not find file {}",
-            name
-        )))?;
+        let exe = self
+            .get(name)
+            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {}", name)))?;
 
         if exe.details.as_ref().map(|d| d.is_api_set).unwrap_or(true) {
             return Ok(ExecutablesCheckReport::new());
@@ -163,22 +174,20 @@ impl Executables {
         let imported_symbols = &exe
             .details
             .as_ref()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not find details for file {}",
-                name
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!("Could not find details for file {}", name))
+            })?
             .symbols
             .as_ref()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not find symbols for file {}",
-                name
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!("Could not find symbols for file {}", name))
+            })?
             .imported;
 
         let mut missing_imports = ExecutablesCheckReport::new();
 
-        for (dll_name, _) in imported_symbols {
-            if let Some(dll_exe) = self.get(&dll_name) {
+        for dll_name in imported_symbols.keys() {
+            if let Some(dll_exe) = self.get(dll_name) {
                 // TODO: following should distinguish if not found (in case report missing library), or if system/api set
                 if dll_exe.found {
                     if !dll_exe
@@ -187,7 +196,7 @@ impl Executables {
                         .map(|d| d.is_system)
                         .unwrap_or(true)
                     {
-                        let res = self.check_symbols(name, &dll_name)?;
+                        let res = self.check_symbols(name, dll_name)?;
                         missing_imports.extend(res);
                     }
                 } else {
@@ -211,49 +220,42 @@ impl Executables {
         importer: &str,
         exporter: &str,
     ) -> Result<ExecutablesCheckReport, LookupError> {
-        let exe = self.get(importer).ok_or(LookupError::ScanError(format!(
-            "Could not find file {}",
-            importer
-        )))?;
+        let exe = self
+            .get(importer)
+            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {}", importer)))?;
         let imported_symbols = &exe
             .details
             .as_ref()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not find details for file {}",
-                importer
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!("Could not find details for file {}", importer))
+            })?
             .symbols
             .as_ref()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not find symbols for file {}",
-                importer
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!("Could not find symbols for file {}", importer))
+            })?
             .imported;
-        let imported_symbols_this_dep =
-            imported_symbols
-                .get(exporter)
-                .ok_or(LookupError::ScanError(format!(
-                    "Could not find list of symbols imported by {} from {}",
-                    importer, exporter
-                )))?;
+        let imported_symbols_this_dep = imported_symbols.get(exporter).ok_or_else(|| {
+            LookupError::ScanError(format!(
+                "Could not find list of symbols imported by {} from {}",
+                importer, exporter
+            ))
+        })?;
 
-        let dep_exe = self.get(exporter).ok_or(LookupError::ScanError(format!(
-            "Could not find file {}",
-            exporter
-        )))?;
+        let dep_exe = self
+            .get(exporter)
+            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {}", exporter)))?;
         let exported_symbols = &dep_exe
             .details
             .as_ref()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not find details for file {}",
-                exporter
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!("Could not find details for file {}", exporter))
+            })?
             .symbols
             .as_ref()
-            .ok_or(LookupError::ScanError(format!(
-                "Could not find symbols for file {}",
-                exporter
-            )))?
+            .ok_or_else(|| {
+                LookupError::ScanError(format!("Could not find symbols for file {}", exporter))
+            })?
             .exported;
 
         let mut missing_symbols: HashSet<String> = HashSet::new();
@@ -288,10 +290,11 @@ impl Executables {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::LookupError;
+    use crate::executable::Executables;
     use crate::path::LookupPath;
     use crate::query::LookupQuery;
     use crate::runner::run;
-    use crate::{Executables, LookupError};
     use fs_err as fs;
     use std::collections::HashSet;
     use std::iter::FromIterator;
@@ -337,7 +340,7 @@ mod tests {
             .map(|e| e.dllname.as_ref())
             .collect();
         let expected_names: HashSet<&str> =
-            HashSet::from_iter(["DepRunTestLib.dll", "DepRunTest.exe"].iter().map(|&s| s));
+            HashSet::from_iter(["DepRunTestLib.dll", "DepRunTest.exe"].iter().copied());
         assert_eq!(sorted_names, expected_names);
 
         let exe_p = &exes

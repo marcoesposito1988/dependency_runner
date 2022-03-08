@@ -1,13 +1,14 @@
 extern crate dependency_runner;
 
 use clap::{App, Arg};
+use dependency_runner::common::{decanonicalize, path_to_string, readable_canonical_path};
+use dependency_runner::executable::Executable;
 use fs_err as fs;
 
 use dependency_runner::path::LookupPath;
+use dependency_runner::query::LookupQuery;
 use dependency_runner::runner::run;
-use dependency_runner::{
-    decanonicalize, path_to_string, readable_canonical_path, Executable, LookupQuery, WindowsSystem,
-};
+use dependency_runner::system::WindowsSystem;
 
 fn main() -> anyhow::Result<()> {
     let matches = App::new("dependency_runner")
@@ -66,16 +67,14 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
         query.system = WindowsSystem::from_root(overridden_sysdir);
-    } else {
-        if verbose {
-            if let Some(system) = &query.system {
-                println!(
-                    "Windows partition root not specified, assumed {}",
-                    path_to_string(&system.sys_dir)
-                );
-            } else {
-                println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
-            }
+    } else if verbose {
+        if let Some(system) = &query.system {
+            println!(
+                "Windows partition root not specified, assumed {}",
+                path_to_string(&system.sys_dir)
+            );
+        } else {
+            println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
         }
     }
 
@@ -104,8 +103,7 @@ fn main() -> anyhow::Result<()> {
                     &prefix,
                     e.details
                         .as_ref()
-                        .map(|d| readable_canonical_path(&d.full_path).ok())
-                        .flatten()
+                        .and_then(|d| readable_canonical_path(&d.full_path).ok())
                         .unwrap_or(format!("{:?}", e.dllname))
                 );
             }

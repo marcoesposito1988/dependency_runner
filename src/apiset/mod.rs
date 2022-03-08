@@ -16,7 +16,7 @@ Resources:
 mod image;
 mod win10;
 
-use crate::LookupError;
+use crate::common::LookupError;
 use std::path::Path;
 use win10::Entry;
 

@@ -1,17 +1,18 @@
 extern crate dependency_runner;
 
+#[cfg(windows)]
+use dependency_runner::common::LookupError;
 use dependency_runner::path::LookupPath;
 #[cfg(windows)]
 use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
-#[cfg(windows)]
-use dependency_runner::LookupError;
-pub(crate) use dependency_runner::{
-    decanonicalize, demangle_symbol, path_to_string, readable_canonical_path, Executable,
-    Executables, LookupQuery, WindowsSystem,
-};
 
 use anyhow::Context;
 use clap::{value_t, App, Arg};
+use dependency_runner::common::{decanonicalize, path_to_string, readable_canonical_path};
+use dependency_runner::executable::{Executable, Executables};
+use dependency_runner::pe::demangle_symbol;
+use dependency_runner::query::LookupQuery;
+use dependency_runner::system::WindowsSystem;
 use fs_err as fs;
 use std::path::PathBuf;
 
@@ -56,43 +57,41 @@ fn visit_depth_first(
     exes: &Executables,
     print_system_dlls: bool,
 ) {
-    if max_depth.map(|d| current_depth < d).unwrap_or(true) {
-        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && !print_system_dlls) {
-            let folder = if !e.found {
-                "not found".to_owned()
-            } else {
-                if let Some(details) = &e.details {
-                    readable_canonical_path(&details.full_path.parent().unwrap())
-                        .unwrap_or("INVALID".to_owned())
-                } else {
-                    "not searched".to_owned()
-                }
-            };
-            let extra_tag = if e.details.as_ref().map(|d| d.is_known_dll).unwrap_or(false) {
-                "[Known DLL]"
-            } else {
-                ""
-            };
-            println!(
-                "{}{} => {} {}",
-                "\t".repeat(current_depth),
-                e.dllname,
-                folder,
-                extra_tag
-            );
+    if (print_system_dlls || !e.details.as_ref().map(|d| d.is_system).unwrap_or(false))
+        && max_depth.map(|d| current_depth < d).unwrap_or(true)
+    {
+        let folder = if !e.found {
+            "not found".to_owned()
+        } else if let Some(details) = &e.details {
+            readable_canonical_path(&details.full_path.parent().unwrap())
+                .unwrap_or_else(|_| "INVALID".to_owned())
+        } else {
+            "not searched".to_owned()
+        };
+        let extra_tag = if e.details.as_ref().map(|d| d.is_known_dll).unwrap_or(false) {
+            "[Known DLL]"
+        } else {
+            ""
+        };
+        println!(
+            "{}{} => {} {}",
+            "\t".repeat(current_depth),
+            e.dllname,
+            folder,
+            extra_tag
+        );
 
-            if let Some(details) = &e.details {
-                if let Some(dependencies) = &details.dependencies {
-                    for d in dependencies {
-                        if let Some(de) = exes.get(&d) {
-                            visit_depth_first(
-                                de,
-                                current_depth + 1,
-                                max_depth,
-                                exes,
-                                print_system_dlls,
-                            );
-                        }
+        if let Some(details) = &e.details {
+            if let Some(dependencies) = &details.dependencies {
+                for d in dependencies {
+                    if let Some(de) = exes.get(d) {
+                        visit_depth_first(
+                            de,
+                            current_depth + 1,
+                            max_depth,
+                            exes,
+                            print_system_dlls,
+                        );
                     }
                 }
             }
@@ -309,32 +308,28 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
         query.system = WindowsSystem::from_root(overridden_sysdir);
-    } else {
-        if verbose {
-            if let Some(system) = &query.system {
-                println!(
-                    "Windows partition root not specified, assumed {}",
-                    path_to_string(&system.sys_dir)
-                );
-            } else {
-                println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
-            }
+    } else if verbose {
+        if let Some(system) = &query.system {
+            println!(
+                "Windows partition root not specified, assumed {}",
+                path_to_string(&system.sys_dir)
+            );
+        } else {
+            println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
         }
     }
 
     if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
         query.target.working_dir = PathBuf::from(overridden_workdir);
-    } else {
-        if verbose {
-            println!(
-                "Working directory not specified, assuming directory of executable: {}",
-                decanonicalize(query.target.working_dir.to_str().unwrap_or("---"))
-            );
-        }
+    } else if verbose {
+        println!(
+            "Working directory not specified, assuming directory of executable: {}",
+            decanonicalize(query.target.working_dir.to_str().unwrap_or("---"))
+        );
     }
     if let Some(overridden_path) = matches.value_of("PATH") {
         let canonicalized_path: Vec<PathBuf> = overridden_path
-            .split(";")
+            .split(';')
             .filter_map(|s| {
                 let p = std::path::Path::new(s);
                 if p.exists() {
@@ -346,27 +341,25 @@ fn main() -> anyhow::Result<()> {
             })
             .collect::<Result<Vec<_>, std::io::Error>>()?;
         query.target.user_path.extend(canonicalized_path);
-    } else {
-        if verbose {
-            #[cfg(windows)]
-            {
-                let decanonicalized_path: Vec<String> = query
-                    .target
-                    .user_path
-                    .iter()
-                    .map(|p| decanonicalize(p.to_str().unwrap()))
-                    .collect();
-                println!(
-                    "User path not specified, taken that of current shell: {}",
-                    decanonicalized_path.join(", ")
-                );
-            }
-            #[cfg(not(windows))]
+    } else if verbose {
+        #[cfg(windows)]
+        {
+            let decanonicalized_path: Vec<String> = query
+                .target
+                .user_path
+                .iter()
+                .map(|p| decanonicalize(p.to_str().unwrap()))
+                .collect();
             println!(
-                "User path not specified, assumed: {:?}",
-                query.target.user_path
+                "User path not specified, taken that of current shell: {}",
+                decanonicalized_path.join(", ")
             );
         }
+        #[cfg(not(windows))]
+        println!(
+            "User path not specified, assumed: {:?}",
+            query.target.user_path
+        );
     };
 
     #[cfg(not(windows))]

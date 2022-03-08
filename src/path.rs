@@ -1,6 +1,7 @@
+use crate::apiset;
+use crate::common::LookupError;
 use crate::query::LookupQuery;
-use crate::system::{KnownDLLList, WinFileSystemCache};
-use crate::{apiset, LookupError, WindowsSystem};
+use crate::system::{KnownDLLList, WinFileSystemCache, WindowsSystem};
 use fs_err as fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -29,13 +30,10 @@ pub enum LookupPathEntry<'a> {
 
 impl<'a> LookupPathEntry<'a> {
     pub fn is_system(&self) -> bool {
-        match self {
-            Self::KnownDLLs(_) => true,
-            Self::ApiSet(_) => true,
-            Self::WindowsDir(_) => true,
-            Self::SystemDir(_) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::KnownDLLs(_) | Self::ApiSet(_) | Self::WindowsDir(_) | Self::SystemDir(_)
+        )
     }
 
     pub fn get_path(&self) -> Option<PathBuf> {
@@ -103,8 +101,8 @@ impl<'a> LookupPath<'a> {
                     vec![LookupPathEntry::WorkingDir(
                         query.target.working_dir.clone(),
                     )],
-                    Self::system_path_entries(&system),
-                    Self::user_path_entries(&query),
+                    Self::system_path_entries(system),
+                    Self::user_path_entries(query),
                 ]
                 .concat()
             } else {
@@ -117,8 +115,8 @@ impl<'a> LookupPath<'a> {
                         LookupPathEntry::WorkingDir(query.target.working_dir.clone()),
                     ],
                     system_entries,
-                    Self::system_path_entries(&system),
-                    Self::user_path_entries(&query),
+                    Self::system_path_entries(system),
+                    Self::user_path_entries(query),
                 ]
                 .concat()
             }
@@ -128,7 +126,7 @@ impl<'a> LookupPath<'a> {
                     LookupPathEntry::ExecutableDir(query.target.app_dir.clone()),
                     LookupPathEntry::WorkingDir(query.target.working_dir.clone()),
                 ],
-                Self::user_path_entries(&query),
+                Self::user_path_entries(query),
             ]
             .concat()
         };
@@ -148,7 +146,7 @@ impl<'a> LookupPath<'a> {
         if s.is_empty() {
             return Ok(vec![]);
         }
-        if [':', ';', '/', '\'', '#'].contains(&s.chars().nth(0).unwrap()) {
+        if [':', ';', '/', '\'', '#'].contains(&s.chars().next().unwrap()) {
             // comment
             return Ok(vec![]);
         }
@@ -204,7 +202,7 @@ impl<'a> LookupPath<'a> {
         let comment_chars = [':', ';', '/', '\'', '#'];
         let lines: Vec<String> = fs::read_to_string(dwp_path)?
             .lines()
-            .filter(|s| !(s.is_empty() || comment_chars.contains(&s.chars().nth(0).unwrap())))
+            .filter(|s| !(s.is_empty() || comment_chars.contains(&s.chars().next().unwrap())))
             .map(str::to_owned)
             .collect();
         let entries_vecs = lines
@@ -308,9 +306,9 @@ impl<'a> LookupPath<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::LookupError;
     use crate::path::LookupPath;
     use crate::query::LookupQuery;
-    use crate::LookupError;
 
     #[test]
     fn parse_dwp() -> Result<(), LookupError> {
