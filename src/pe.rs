@@ -1,3 +1,6 @@
+//! Wrapping about the PELite library for convenient access to the functionalities that 
+//! are most relevant for the project
+
 extern crate msvc_demangler;
 extern crate thiserror;
 use crate::common::LookupError;

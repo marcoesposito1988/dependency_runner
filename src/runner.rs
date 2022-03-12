@@ -1,3 +1,6 @@
+//! Routine to perform a recursive lookup according to the parameters in the user-provided query and 
+//! the lookup path computed from it (and eventually adjusted by the user)
+
 use crate::common::{readable_canonical_path, LookupError};
 use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
 use crate::path::{LookupPath, LookupPathEntry};

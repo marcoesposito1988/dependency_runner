@@ -1,3 +1,5 @@
+//! Utilities to parse Visual Studio project files
+
 use crate::common::{readable_canonical_path, LookupError};
 use fs_err as fs;
 use std::collections::HashMap;

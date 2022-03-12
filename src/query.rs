@@ -1,3 +1,5 @@
+//! Data structures that must be filled with the input and the parameters for the DLL scan
+
 use crate::common::LookupError;
 use crate::system::WindowsSystem;
 use crate::vcx::{VcxDebuggingConfiguration, VcxExecutableInformation};

@@ -1,3 +1,6 @@
+//! This create contains utility functions used throughout the library, such as error handling and
+//! path manipulation.
+
 use fs_err as fs;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;

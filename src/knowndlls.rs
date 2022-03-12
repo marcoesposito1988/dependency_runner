@@ -1,3 +1,5 @@
+//! Utilities to read the list of known DLLs for a Windows installation
+
 extern crate ntapi;
 extern crate winapi;
 

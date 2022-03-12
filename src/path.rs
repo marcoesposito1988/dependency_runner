@@ -1,3 +1,6 @@
+//! This is the workhorse of the library: the LookupPath contains the list of possible locations for 
+//! a dependency, performs the actual lookup and caching of the results and of all filesystem access.
+
 use crate::apiset;
 use crate::common::LookupError;
 use crate::query::LookupQuery;

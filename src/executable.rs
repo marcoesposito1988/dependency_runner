@@ -1,9 +1,12 @@
+//! This crate contains the data structures used to hold the results of a dependency scan
 use crate::common::{readable_canonical_path, LookupError};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 /// Information about a DLL that was mentioned as target for the search
+/// If the file was actually found, additional info is available. Otherwise it represents a 
+/// missing/broken dependency.
 #[derive(Debug, Clone, Serialize)]
 pub struct Executable {
     /// Name as it appears in the import table

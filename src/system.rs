@@ -1,3 +1,5 @@
+//! Description of a Windows system useful to compute the lookup path
+
 #[cfg(windows)]
 extern crate winapi;
 use crate::apiset;
