@@ -106,7 +106,7 @@ fn main() -> anyhow::Result<()> {
         .about("ldd for Windows - and more!")
         .arg(
             Arg::with_name("INPUT")
-                .help("Sets the input file to use")
+                .help("Target file (.exe or .dll)")
                 .required(true)
                 .index(1),
         )
@@ -115,7 +115,7 @@ fn main() -> anyhow::Result<()> {
                 .short("j")
                 .long("output-json-path")
                 .value_name("OUTPUT_JSON_PATH")
-                .help("Sets the path for the output JSON file")
+                .help("Path for output in JSON format")
                 .takes_value(true),
         )
         .arg(
@@ -131,7 +131,7 @@ fn main() -> anyhow::Result<()> {
                 .short("v")
                 .long("verbose")
                 .multiple(true)
-                .help("Sets the level of verbosity"),
+                .help("Verbosity level"),
         )
         .arg(
             Arg::with_name("PRINT_SYS_DLLS")
@@ -156,7 +156,7 @@ fn main() -> anyhow::Result<()> {
                         .long("workdir")
                         .value_name("WORKDIR")
                         .help(
-                            "Specify a current working directory other than that of the current shell",
+                            "Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)",
                         )
                         .takes_value(true),
                 )
@@ -165,14 +165,14 @@ fn main() -> anyhow::Result<()> {
                         .short("a")
                         .long("userpath")
                         .value_name("PATH")
-                        .help("Specify a user path different from that of the current shell")
+                        .help("User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
                         .takes_value(true),
                 )
                 .arg(
                     Arg::with_name("DWP_FILE_PATH")
                         .long("dwp-file-path")
                         .value_name("DWP_FILE_PATH")
-                        .help("Read the search path from a .dwp file (Dependency Walker's format)")
+                        .help("Read the complete DLL lookup path from a .dwp file (Dependency Walker's format)")
                         .takes_value(true),
                 )
                 .arg(
@@ -196,24 +196,23 @@ fn main() -> anyhow::Result<()> {
         #[cfg(not(windows))]
         {
             args
-                .arg(Arg::with_name("Windows root")
+                .arg(Arg::with_name("WINDOWS_ROOT")
                     .short("w")
                     .long("windows-root")
-                    .value_name("WINROOT")
-                    .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
+                    .help("Windows partition to use for system DLLs lookup (if not specified, the partition where INPUT lies will be tested and used if valid)")
                     .takes_value(true))
                 .arg(Arg::with_name("WORKDIR")
                     .short("k")
                     .long("workdir")
                     .value_name("WORKDIR")
-                    .help("Specify a current working directory other than that of the current shell")
+                    .help("Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
                     .takes_value(true))
                 .arg(
                     Arg::with_name("PATH")
                         .short("a")
                         .long("userpath")
                         .value_name("PATH")
-                        .help("Specify a user path")
+                        .help("User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
                         .takes_value(true),
                 )
         }
@@ -306,7 +305,7 @@ fn main() -> anyhow::Result<()> {
 
     // overrides (must be last)
 
-    if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
+    if let Some(overridden_sysdir) = matches.value_of("WINDOWS_ROOT") {
         query.system = WindowsSystem::from_root(overridden_sysdir);
     } else if verbose {
         if let Some(system) = &query.system {
