@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
         )
         .arg(
             Arg::with_name("OUTPUT_JSON_PATH")
-                .short("j")
+                .short('j')
                 .long("output-json-path")
                 .value_name("OUTPUT_JSON_PATH")
                 .help("Path for output in JSON format")
@@ -120,7 +120,7 @@ fn main() -> anyhow::Result<()> {
         )
         .arg(
             Arg::with_name("MAX_DEPTH")
-                .short("d")
+                .short('d')
                 .long("max-depth")
                 .value_name("MAX_DEPTH")
                 .help("Maximum recursion depth (default: unlimited)")
@@ -128,8 +128,9 @@ fn main() -> anyhow::Result<()> {
         )
         .arg(
             Arg::with_name("VERBOSE")
-                .short("v")
+                .short('v')
                 .long("verbose")
+                .takes_value(true)
                 .multiple(true)
                 .help("Verbosity level"),
         )
@@ -152,7 +153,7 @@ fn main() -> anyhow::Result<()> {
             args
                 .arg(
                     Arg::with_name("WORKDIR")
-                        .short("k")
+                        .short('k')
                         .long("workdir")
                         .value_name("WORKDIR")
                         .help(
@@ -162,7 +163,7 @@ fn main() -> anyhow::Result<()> {
                 )
                 .arg(
                     Arg::with_name("PATH")
-                        .short("a")
+                        .short('a')
                         .long("userpath")
                         .value_name("PATH")
                         .help("User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
@@ -197,19 +198,19 @@ fn main() -> anyhow::Result<()> {
         {
             args
                 .arg(Arg::with_name("WINDOWS_ROOT")
-                    .short("w")
+                    .short('w')
                     .long("windows-root")
                     .help("Windows partition to use for system DLLs lookup (if not specified, the partition where INPUT lies will be tested and used if valid)")
                     .takes_value(true))
                 .arg(Arg::with_name("WORKDIR")
-                    .short("k")
+                    .short('k')
                     .long("workdir")
                     .value_name("WORKDIR")
                     .help("Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
                     .takes_value(true))
                 .arg(
                     Arg::with_name("PATH")
-                        .short("a")
+                        .short('a')
                         .long("userpath")
                         .value_name("PATH")
                         .help("User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
@@ -305,6 +306,7 @@ fn main() -> anyhow::Result<()> {
 
     // overrides (must be last)
 
+    #[cfg(not(windows))]
     if let Some(overridden_sysdir) = matches.value_of("WINDOWS_ROOT") {
         query.system = WindowsSystem::from_root(overridden_sysdir);
     } else if verbose {

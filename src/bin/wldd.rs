@@ -22,13 +22,14 @@ fn main() -> anyhow::Result<()> {
                 .index(1),
         )
         .arg(Arg::with_name("Windows root")
-            .short("w")
+            .short('w')
             .long("windows-root")
             .value_name("WINROOT")
             .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
             .takes_value(true))
         .arg(Arg::with_name("VERBOSE")
-            .short("v")
+            .short('v')
+            .takes_value(true)
             .multiple(true)
             .help("Sets the level of verbosity"))
         .arg(
@@ -65,6 +66,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut query = LookupQuery::deduce_from_executable_location(binary_path)?;
 
+    #[cfg(not(windows))]
     if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
         query.system = WindowsSystem::from_root(overridden_sysdir);
     } else if verbose {
