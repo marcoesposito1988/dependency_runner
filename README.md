@@ -147,14 +147,18 @@ Help is welcome in the form of issues and pull request!
     - [x] specification of executable and working directory through `.vcxproj` files, picking configuration
     - [x] extraction of symbols from DLLs
     - [x] check of imported/exported symbols correspondency down the dependency tree
+  - [x] release on package managers
+      - [x] crates.io
 - v 0.2.0
     - [x] support of API sets
     - [x] support of KnownDLLs
-- v 0.3.0
+- v 1.0.0
+    - [x] API refactor
+    - [x] documentation improvement
+- v 1.1.0
     - [ ] support of manifests
     - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers
-      - [x] crates.io
       - [ ] Chocolatey
       - [ ] WinGet?
       - [ ] APT?
@@ -163,7 +167,7 @@ Help is welcome in the form of issues and pull request!
         - [ ] subset of verbose output
         - [ ] unused symbols?
         - [ ] relocation?
-- v 0.x.0
+- v 1.x.0
     - [ ] parallelization across multiple threads (if ever necessary)
     - [ ] `dependency_runner` GUI?
         - [ ] drag-and-drop input of executables
