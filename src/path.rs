@@ -169,7 +169,7 @@ impl<'a> LookupPath<'a> {
             }),
             "16BitSysDir" => Ok(vec![]), // ignored
             "OSDir" => Ok(if let Some(system) = &q.system {
-                vec![LookupPathEntry::SystemDir(system.win_dir.clone())]
+                vec![LookupPathEntry::WindowsDir(system.win_dir.clone())]
             } else {
                 vec![]
             }),
@@ -307,7 +307,7 @@ impl<'a> LookupPath<'a> {
 #[cfg(test)]
 mod tests {
     use crate::common::LookupError;
-    use crate::path::LookupPath;
+    use crate::path::{LookupPath, LookupPathEntry};
     use crate::query::LookupQuery;
 
     #[test]
@@ -325,9 +325,15 @@ mod tests {
         let path = LookupPath::from_dwp_file(&dwp_file_path, &query)?;
 
         if query.system.is_some() {
-            assert_eq!(path.entries.len(), 9);
+            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs(_)));
+            assert!(std::matches!(path.entries[1], LookupPathEntry::ExecutableDir(_)));
+            assert!(std::matches!(path.entries[2], LookupPathEntry::SystemDir(_)));
+            assert!(std::matches!(path.entries[3], LookupPathEntry::WindowsDir(_)));
+            assert!(std::matches!(path.entries[4], LookupPathEntry::UserPath(_)));
         } else {
-            assert_eq!(path.entries.len(), 3);
+            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs(_)));
+            assert!(std::matches!(path.entries[1], LookupPathEntry::ExecutableDir(_)));
+            assert!(std::matches!(path.entries[2], LookupPathEntry::SystemDir(_)));
         }
 
         Ok(())
