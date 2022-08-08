@@ -1,6 +1,7 @@
 use super::image::*;
 use pelite::util::AlignTo;
-use pelite::{Error, Pod, Result};
+use pelite::{Error, Result};
+use dataview::{Pod};
 use std::{fmt, mem, slice};
 
 //----------------------------------------------------------------
