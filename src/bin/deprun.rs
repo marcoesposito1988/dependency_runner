@@ -7,11 +7,14 @@ use dependency_runner::path::LookupPath;
 use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
 
 use anyhow::Context;
-use clap::{value_t, App, Arg};
-use dependency_runner::common::{decanonicalize, path_to_string, readable_canonical_path};
+use clap::Parser;
+#[cfg(not(windows))]
+use dependency_runner::common::path_to_string;
+use dependency_runner::common::{decanonicalize, readable_canonical_path};
 use dependency_runner::executable::{Executable, Executables};
 use dependency_runner::pe::demangle_symbol;
 use dependency_runner::query::LookupQuery;
+#[cfg(not(windows))]
 use dependency_runner::system::WindowsSystem;
 use fs_err as fs;
 use std::path::PathBuf;
@@ -19,7 +22,7 @@ use std::path::PathBuf;
 #[cfg(windows)]
 fn pick_configuration(
     configs: &Vec<&String>,
-    user_config: &Option<&str>,
+    user_config: &Option<String>,
     file_path: &str,
 ) -> Result<String, LookupError> {
     if let Some(vcx_config) = user_config {
@@ -99,131 +102,55 @@ fn visit_depth_first(
     }
 }
 
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct DeprunCli {
+    #[clap(value_parser)]
+    /// Target file (.exe, .dll or .vcxproj)
+    input: String,
+    #[clap(value_parser, short, long)]
+    /// Path for output in JSON format
+    output_json_path: Option<String>,
+    #[clap(value_parser, short, long)]
+    /// Maximum recursion depth (default: unlimited)
+    max_depth: Option<usize>,
+    #[clap(short, long)]
+    /// Activate verbose output
+    verbose: bool,
+    #[clap(short, long)]
+    /// Include system DLLs in the output
+    print_system_dlls: bool,
+    #[clap(short, long)]
+    /// Check that all imported symbols are found within the (non-system) dependencies
+    check_symbols: bool,
+    #[clap(value_parser, short, long)]
+    /// Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)
+    working_directory: Option<String>,
+    #[clap(value_parser, short, long)]
+    /// User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)
+    user_path: Option<String>,
+    #[cfg(windows)]
+    #[clap(value_parser, long)]
+    /// Read the complete DLL lookup path from a .dwp file (Dependency Walker's format)
+    dwp_path: Option<String>,
+    #[cfg(windows)]
+    #[clap(value_parser, long, conflicts_with = "dwp-path")]
+    /// Path to a .vcxproj.user file to parse for PATH entries to be added to the search path
+    vcxproj_user_path: Option<String>,
+    #[cfg(windows)]
+    #[clap(value_parser, long, conflicts_with = "dwp-path")]
+    /// Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or if a .vcxproj.user was provided
+    vcxproj_configuration: Option<String>,
+    #[cfg(not(windows))]
+    #[clap(value_parser, short = 'r', long)]
+    /// Windows partition to use for system DLLs lookup (if not specified, the partition where INPUT lies will be tested and used if valid)
+    windows_root: Option<String>,
+}
+
 fn main() -> anyhow::Result<()> {
-    let args = App::new("dependency_runner")
-        .version(env!("CARGO_PKG_VERSION"))
-        .author("Marco Esposito <marcoesposito1988@gmail.com>")
-        .about("ldd for Windows - and more!")
-        .arg(
-            Arg::with_name("INPUT")
-                .help("Target file (.exe or .dll)")
-                .required(true)
-                .index(1),
-        )
-        .arg(
-            Arg::with_name("OUTPUT_JSON_PATH")
-                .short('j')
-                .long("output-json-path")
-                .value_name("OUTPUT_JSON_PATH")
-                .help("Path for output in JSON format")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("MAX_DEPTH")
-                .short('d')
-                .long("max-depth")
-                .value_name("MAX_DEPTH")
-                .help("Maximum recursion depth (default: unlimited)")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("VERBOSE")
-                .short('v')
-                .long("verbose")
-                .takes_value(true)
-                .multiple(true)
-                .help("Verbosity level"),
-        )
-        .arg(
-            Arg::with_name("PRINT_SYS_DLLS")
-                .long("print-system-dlls")
-                .takes_value(false)
-                .help("Include system DLLs in the output"),
-        )
-        .arg(
-            Arg::with_name("CHECK_SYMBOLS")
-                .long("check-symbols")
-                .takes_value(false)
-                .help("Check that all imported symbols are found within the (non-system) dependencies"),
-        );
+    let args = DeprunCli::parse();
 
-    let args = {
-        #[cfg(windows)]
-        {
-            args
-                .arg(
-                    Arg::with_name("WORKDIR")
-                        .short('k')
-                        .long("workdir")
-                        .value_name("WORKDIR")
-                        .help(
-                            "Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)",
-                        )
-                        .takes_value(true),
-                )
-                .arg(
-                    Arg::with_name("PATH")
-                        .short('a')
-                        .long("userpath")
-                        .value_name("PATH")
-                        .help("User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
-                        .takes_value(true),
-                )
-                .arg(
-                    Arg::with_name("DWP_FILE_PATH")
-                        .long("dwp-file-path")
-                        .value_name("DWP_FILE_PATH")
-                        .help("Read the complete DLL lookup path from a .dwp file (Dependency Walker's format)")
-                        .takes_value(true),
-                )
-                .arg(
-                    Arg::with_name("VCXPROJ_USER_PATH")
-                        .long("vcxuser-path")
-                        .value_name("VCXPROJ_USER_PATH")
-                        .help("Path to a .vcxproj.user file to parse for PATH entries to be added to the search path")
-                        .takes_value(true)
-                        .conflicts_with("DWP_FILE_PATH"),
-                )
-                .arg(
-                    Arg::with_name("VCXPROJ_CONFIGURATION")
-                        .long("vcx-config")
-                        .value_name("VCXPROJ_CONFIGURATION")
-                        .help("Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or a .vcxproj.user was provided")
-                        .takes_value(true)
-                        .conflicts_with("DWP_FILE_PATH"),
-                )
-        }
-
-        #[cfg(not(windows))]
-        {
-            args
-                .arg(Arg::with_name("WINDOWS_ROOT")
-                    .short('w')
-                    .long("windows-root")
-                    .help("Windows partition to use for system DLLs lookup (if not specified, the partition where INPUT lies will be tested and used if valid)")
-                    .takes_value(true))
-                .arg(Arg::with_name("WORKDIR")
-                    .short('k')
-                    .long("workdir")
-                    .value_name("WORKDIR")
-                    .help("Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
-                    .takes_value(true))
-                .arg(
-                    Arg::with_name("PATH")
-                        .short('a')
-                        .long("userpath")
-                        .value_name("PATH")
-                        .help("User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)")
-                        .takes_value(true),
-                )
-        }
-    };
-
-    let matches = args.get_matches();
-
-    let verbose = matches.occurrences_of("VERBOSE") > 0;
-
-    let binary_path = PathBuf::from(matches.value_of("INPUT").unwrap());
+    let binary_path = PathBuf::from(args.input);
 
     if !binary_path.exists() {
         eprintln!(
@@ -244,10 +171,6 @@ fn main() -> anyhow::Result<()> {
 
     let binary_path = fs::canonicalize(binary_path)?;
 
-    let print_system_dlls = matches.is_present("PRINT_SYS_DLLS");
-
-    let check_symbols = matches.is_present("CHECK_SYMBOLS");
-
     #[cfg(not(windows))]
     let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
@@ -261,7 +184,7 @@ fn main() -> anyhow::Result<()> {
         let vcx_exe_info_per_config = parse_vcxproj(&vcxproj_path)?;
         let vcx_config_to_use = pick_configuration(
             &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
-            &matches.value_of("VCXPROJ_CONFIGURATION"),
+            &args.vcxproj_configuration,
             vcxproj_path
                 .to_str()
                 .ok_or(LookupError::ContextDeductionError(format!(
@@ -275,8 +198,8 @@ fn main() -> anyhow::Result<()> {
     } else {
         let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
-        if let Some(vcxproj_user_path_str) = matches.value_of("VCXPROJ_USER_PATH") {
-            let vcxproj_user_path = std::path::Path::new(vcxproj_user_path_str);
+        if let Some(vcxproj_user_path_str) = args.vcxproj_user_path {
+            let vcxproj_user_path = std::path::Path::new(&vcxproj_user_path_str);
             if !vcxproj_user_path.exists() || vcxproj_user_path.is_dir() {
                 eprintln!(
                     "Specified vcxproj.user file not found at {}",
@@ -288,8 +211,8 @@ fn main() -> anyhow::Result<()> {
             let vcx_debug_info_per_config = parse_vcxproj_user(&vcxproj_user_path)?;
             let config_to_use = pick_configuration(
                 &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
-                &matches.value_of("VCXPROJ_CONFIGURATION"),
-                vcxproj_user_path_str,
+                &args.vcxproj_configuration,
+                &vcxproj_user_path_str,
             )?;
             let vcx_debug_info = &vcx_debug_info_per_config[&config_to_use];
 
@@ -298,18 +221,18 @@ fn main() -> anyhow::Result<()> {
         query
     };
 
-    if let Ok(max_depth) = value_t!(matches.value_of("MAX_DEPTH"), usize) {
+    if let Some(max_depth) = args.max_depth {
         query.parameters.max_depth = Some(max_depth);
     }
 
-    query.parameters.extract_symbols = check_symbols;
+    query.parameters.extract_symbols = args.check_symbols;
 
     // overrides (must be last)
 
     #[cfg(not(windows))]
-    if let Some(overridden_sysdir) = matches.value_of("WINDOWS_ROOT") {
-        query.system = WindowsSystem::from_root(overridden_sysdir);
-    } else if verbose {
+    if let Some(overridden_winroot) = args.windows_root {
+        query.system = WindowsSystem::from_root(overridden_winroot);
+    } else if args.verbose {
         if let Some(system) = &query.system {
             println!(
                 "Windows partition root not specified, assumed {}",
@@ -320,15 +243,15 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    if let Some(overridden_workdir) = matches.value_of("WORKDIR") {
+    if let Some(overridden_workdir) = args.working_directory {
         query.target.working_dir = PathBuf::from(overridden_workdir);
-    } else if verbose {
+    } else if args.verbose {
         println!(
             "Working directory not specified, assuming directory of executable: {}",
             decanonicalize(query.target.working_dir.to_str().unwrap_or("---"))
         );
     }
-    if let Some(overridden_path) = matches.value_of("PATH") {
+    if let Some(overridden_path) = args.user_path {
         let canonicalized_path: Vec<PathBuf> = overridden_path
             .split(';')
             .filter_map(|s| {
@@ -342,7 +265,7 @@ fn main() -> anyhow::Result<()> {
             })
             .collect::<Result<Vec<_>, std::io::Error>>()?;
         query.target.user_path.extend(canonicalized_path);
-    } else if verbose {
+    } else if args.verbose {
         #[cfg(windows)]
         {
             let decanonicalized_path: Vec<String> = query
@@ -367,13 +290,13 @@ fn main() -> anyhow::Result<()> {
     let lookup_path = LookupPath::deduce(&query);
 
     #[cfg(windows)]
-    let lookup_path = if let Some(dwp_file_path) = matches.value_of("DWP_FILE_PATH") {
+    let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
         dependency_runner::path::LookupPath::from_dwp_file(dwp_file_path, &query)?
     } else {
         dependency_runner::path::LookupPath::deduce(&query)
     };
 
-    if verbose {
+    if args.verbose {
         println!(
             "Looking for dependencies of binary {}",
             readable_canonical_path(&binary_path)?
@@ -433,11 +356,11 @@ fn main() -> anyhow::Result<()> {
             0,
             query.parameters.max_depth,
             &executables,
-            print_system_dlls,
+            args.print_system_dlls,
         );
     }
 
-    if check_symbols {
+    if args.check_symbols {
         println!("\nChecking symbols...\n");
 
         let sym_check = executables.check(query.parameters.extract_symbols);
@@ -488,11 +411,11 @@ fn main() -> anyhow::Result<()> {
 
     // JSON representation
 
-    if let Some(json_output_path) = matches.value_of("OUTPUT_JSON_PATH") {
+    if let Some(json_output_path) = args.output_json_path {
         let js = serde_json::to_string(&sorted_executables).context("Error serializing")?;
 
         use std::io::prelude::*;
-        let path = std::path::Path::new(json_output_path);
+        let path = std::path::Path::new(&json_output_path);
         let display = path.display();
 
         // Open a file in write-only mode, returns `io::Result<File>`
@@ -502,7 +425,7 @@ fn main() -> anyhow::Result<()> {
         file.write_all(js.as_bytes())
             .context(format!("couldn't write to {}", display))?;
 
-        if verbose {
+        if args.verbose {
             println!("successfully wrote to {}", display);
         }
     }
