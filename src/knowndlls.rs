@@ -128,7 +128,7 @@ pub fn get_known_dlls() -> anyhow::Result<Vec<String>> {
                     break;
                 }
 
-                let section_str: std::ffi::OsString = std::ffi::OsString::from("Section");
+                let section_str: OsString = std::ffi::OsString::from("Section");
                 let section_str_2 = u16_ptr_to_string((*info).TypeName.Buffer);
 
                 if section_str == section_str_2 {

@@ -83,7 +83,7 @@ impl ExecutablesCheckReport {
 /// Collection of Executable objects, result of a DLL search
 #[derive(Debug, Clone)]
 pub struct Executables {
-    index: std::collections::HashMap<String, Executable>,
+    index: HashMap<String, Executable>,
 }
 
 impl Default for Executables {
@@ -95,7 +95,7 @@ impl Default for Executables {
 impl Executables {
     pub fn new() -> Self {
         Self {
-            index: std::collections::HashMap::new(),
+            index: HashMap::new(),
         }
     }
 
