@@ -1,6 +1,6 @@
 extern crate dependency_runner;
 
-use clap::{App, Arg};
+use clap::Parser;
 use dependency_runner::common::{decanonicalize, path_to_string, readable_canonical_path};
 use dependency_runner::executable::Executable;
 use fs_err as fs;
@@ -8,41 +8,32 @@ use fs_err as fs;
 use dependency_runner::path::LookupPath;
 use dependency_runner::query::LookupQuery;
 use dependency_runner::runner::run;
+#[cfg(not(windows))]
 use dependency_runner::system::WindowsSystem;
 
+#[derive(Parser)]
+#[clap(mut_arg("help", |arg| arg.short_alias('h')))]
+#[clap(author, version, about, long_about = None)]
+struct WlddCli {
+    #[clap(value_parser)]
+    /// Target file (.exe, .dll or .vcxproj)
+    input: String,
+    #[clap(short, long)]
+    /// Activate verbose output
+    verbose: bool,
+    #[clap(short = 's', long)]
+    /// Do not include system DLLs in the output
+    hide_system_dlls: bool,
+    #[cfg(not(windows))]
+    #[clap(value_parser, short, long)]
+    /// Windows partition to use for system DLLs lookup (if not specified, the partition where INPUT lies will be tested and used if valid)
+    windows_root: Option<String>,
+}
+
 fn main() -> anyhow::Result<()> {
-    let matches = App::new("dependency_runner")
-        .version(env!("CARGO_PKG_VERSION"))
-        .author("Marco Esposito <marcoesposito1988@gmail.com>")
-        .about("ldd for Windows - and more!")
-        .arg(
-            Arg::with_name("INPUT")
-                .help("Sets the input file to use")
-                .required(true)
-                .index(1),
-        )
-        .arg(Arg::with_name("Windows root")
-            .short('w')
-            .long("windows-root")
-            .value_name("WINROOT")
-            .help("Specify a Windows partition (if not specified, the partition where INPUT lies will be tested and used)")
-            .takes_value(true))
-        .arg(Arg::with_name("VERBOSE")
-            .short('v')
-            .takes_value(true)
-            .multiple(true)
-            .help("Sets the level of verbosity"))
-        .arg(
-            Arg::with_name("HIDE_SYS_DLLS")
-                .long("hide-system-dlls")
-                .takes_value(false)
-                .help("Hide system DLLs in the output"),
-        )
-        .get_matches();
+    let args = WlddCli::parse();
 
-    let verbose = matches.occurrences_of("VERBOSE") > 0;
-
-    let binary_path = std::path::PathBuf::from(matches.value_of("INPUT").unwrap());
+    let binary_path = std::path::PathBuf::from(args.input);
 
     if !binary_path.exists() {
         eprintln!(
@@ -62,14 +53,12 @@ fn main() -> anyhow::Result<()> {
 
     let binary_path = fs::canonicalize(binary_path)?;
 
-    let hide_system_dlls = matches.is_present("HIDE_SYS_DLLS");
-
     let mut query = LookupQuery::deduce_from_executable_location(binary_path)?;
 
     #[cfg(not(windows))]
-    if let Some(overridden_sysdir) = matches.value_of("WINROOT") {
-        query.system = WindowsSystem::from_root(overridden_sysdir);
-    } else if verbose {
+    if let Some(overridden_winroot) = args.windows_root {
+        query.system = WindowsSystem::from_root(overridden_winroot);
+    } else if args.verbose {
         if let Some(system) = &query.system {
             println!(
                 "Windows partition root not specified, assumed {}",
@@ -89,7 +78,7 @@ fn main() -> anyhow::Result<()> {
     let prefix = " ".repeat(8); // as ldd
 
     for e in sorted_executables.iter().skip(1) {
-        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && hide_system_dlls) {
+        if !(e.details.as_ref().map(|d| d.is_system).unwrap_or(false) && args.hide_system_dlls) {
             if e.found {
                 println!(
                     "{}{} => {}",
