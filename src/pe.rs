@@ -31,7 +31,7 @@ pub fn read_dependencies(file: &PeFile) -> Result<Vec<String>, LookupError> {
 }
 
 /// Get the list of symbols imported by this file from each of its dependencies
-pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<String>>, LookupError> {
+pub fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<String>>, LookupError> {
     use LookupError::PEError;
     // Access the import directory
     let imports = file.imports().map_err(PEError)?;
@@ -65,7 +65,7 @@ pub(crate) fn read_imports(file: &PeFile) -> Result<HashMap<String, HashSet<Stri
 }
 
 /// Get the list of symbols exported by this DLL
-pub(crate) fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError> {
+pub fn read_exports(file: &PeFile) -> Result<HashSet<String>, LookupError> {
     // To query the exports
     let exports = match file.exports() {
         Ok(exports) => exports,

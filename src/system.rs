@@ -12,14 +12,16 @@ use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
+/// List of DLLs provided by the operating system and hardcoded into the loader
+/// If a DLL with this name is required, the OS will not perform any further lookup but load the
+/// copy distributed with Windows
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct KnownDLLList {
     pub entries: HashMap<String, PathBuf>,
 }
 
 impl KnownDLLList {
-    // looks for a DLL by name
-    // first looks in the known dlls, then in the api set, then in the concrete entries
+    /// look for a DLL by name among the entries
     pub fn search_dll_in_known_dlls(&self, library: &str) -> Result<Option<PathBuf>, LookupError> {
         if let Some(lp) = self.entries.get(&library.to_ascii_lowercase()) {
             Ok(Some(lp.clone()))
@@ -35,10 +37,10 @@ impl KnownDLLList {
 // the other modes are activated programmatically, and there is no hope to be able to handle that properly
 // https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#standard-search-order-for-desktop-applications
 
-// description of a Windows system
-// if running from within Win: we extract system directory paths from Win32 APIs, and read the
-// PATH env var (the user can override everything later if necessary)
-// if running in another OS: we can only guess the directories, and can't do anything about the PATH
+/// Description of a Windows system
+/// If running from within Windows we extract the available information from the registry, the
+/// environment variables and the Windows API.
+/// If running in another OS we can only guess the directories, and can't do anything about the PATH
 #[derive(Debug, Clone)]
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
@@ -51,6 +53,7 @@ pub struct WindowsSystem {
 }
 
 impl WindowsSystem {
+    /// Collect information about the host operating system
     #[cfg(windows)]
     pub fn current() -> Result<Self, LookupError> {
         // TODO: read dll safe mode on/off from HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode (if it doesn't exist, it's 1)
@@ -88,6 +91,8 @@ impl WindowsSystem {
         })
     }
 
+    /// Collect information about the Windows operating system installed on the partition the target
+    /// executable lies into
     #[cfg(not(windows))]
     pub fn from_exe_location<P: AsRef<Path>>(p: P) -> Result<Option<Self>, LookupError> {
         if let Some(root) = Self::find_root(&p) {
@@ -97,6 +102,8 @@ impl WindowsSystem {
         }
     }
 
+    /// Try finding a Windows installation along the path to the target executable
+    /// Rationale: the user may have mounted a Windows partition at an unknown depth in the filesystem
     #[cfg(not(windows))]
     fn find_root<P: AsRef<Path>>(p: P) -> Option<PathBuf> {
         for a in p.as_ref().parent()?.ancestors() {
@@ -107,6 +114,8 @@ impl WindowsSystem {
         None
     }
 
+    /// Collect information about the Windows installation at the given path
+    /// The path should point to the C:\ partition
     pub fn from_root<P: AsRef<Path>>(root_path: P) -> Option<Self> {
         // TODO: wrap hivex?
         // read known dlls from HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs,
@@ -142,6 +151,7 @@ impl PartialEq for WindowsSystem {
     }
 }
 
+/// Fetch the path to a system directory through the Windows API
 #[cfg(windows)]
 fn get_winapi_directory(
     a: unsafe extern "system" fn(
@@ -163,11 +173,13 @@ fn get_winapi_directory(
     }
 }
 
+/// Get the path to the System directory (typically C:\Windows\System32)
 #[cfg(windows)]
 fn get_system_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW);
 }
 
+/// Get the path to the Windows directory (typically C:\Windows)
 #[cfg(windows)]
 fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);

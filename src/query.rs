@@ -29,7 +29,6 @@ pub struct LookupParameters {
 /// Complete specification of a search task
 #[derive(Clone, Debug)]
 pub struct LookupQuery {
-    /// Description of a Windows system (notable paths and data structures involved in DLL lookup)
     pub system: Option<WindowsSystem>,
     pub target: LookupTarget,
     pub parameters: LookupParameters,

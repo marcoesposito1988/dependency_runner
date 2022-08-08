@@ -1,4 +1,4 @@
-use crate::common::LookupError;
+use crate::common::{readable_canonical_path, LookupError};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -96,10 +96,6 @@ impl Executables {
         }
     }
 
-    pub fn insert(&mut self, lr: Executable) {
-        self.index.insert(lr.dllname.to_lowercase(), lr);
-    }
-
     pub fn get(&self, dllname: &str) -> Option<&Executable> {
         self.index.get(&dllname.to_lowercase())
     }
@@ -138,6 +134,27 @@ impl Executables {
         sorted_executables
             .sort_by(|e1, e2| e1.depth_first_appearance.cmp(&e2.depth_first_appearance));
         sorted_executables
+    }
+
+    /// Add a new executable
+    pub(crate) fn insert(&mut self, new_exe: Executable) {
+        if let Some(older_finding) = self.get(&new_exe.dllname) {
+            eprintln!(
+                "Found two DLLs with the same name! {:?} and {:?}",
+                new_exe
+                    .details
+                    .as_ref()
+                    .and_then(|d| readable_canonical_path(&d.full_path).ok())
+                    .unwrap_or(new_exe.dllname),
+                older_finding
+                    .details
+                    .as_ref()
+                    .and_then(|d| readable_canonical_path(&d.full_path).ok())
+                    .unwrap_or_else(|| older_finding.dllname.clone()),
+            );
+        } else {
+            self.index.insert(new_exe.dllname.to_lowercase(), new_exe);
+        }
     }
 
     /// Check that all referenced DLLs are found, and (if available) that imported symbols are present

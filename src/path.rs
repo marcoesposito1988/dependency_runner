@@ -2,6 +2,7 @@ use crate::apiset;
 use crate::common::LookupError;
 use crate::query::LookupQuery;
 use crate::system::{KnownDLLList, WinFileSystemCache, WindowsSystem};
+#[cfg(windows)]
 use fs_err as fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -58,9 +59,14 @@ pub struct LookupResult<'a> {
     pub fullpath: PathBuf,
 }
 
-/// Lookup task that can be performed by a Runner
-/// Holds the user-provided specification of the recursive DLL lookup target and environment,
-/// the resolved lookup path, and a cache to avoid repeated filesystem access.
+/// Linearized lookup path
+/// Contains a list of entries that describes the logic used by the operating system to resolve a
+/// DLL/executable name. Such entries can correspond to a physical location, such as one or more
+/// directories containing DLL libraries, or to a collection of virtual mappings from a DLL name
+/// to one or more actual executable files.
+/// The path is computed from the user-provided query before scanning the dependency tree. It acts
+/// as a reification of the computed path itself, as an interface to look up executables across it
+/// and a cache for the metadata of the DLLs found through it.
 pub struct LookupPath<'a> {
     /// Sorted list of directories to be looked up when searching for a DLL
     /// It is built from a query, depending on the current system configuration
@@ -73,6 +79,7 @@ pub struct LookupPath<'a> {
 
 impl<'a> LookupPath<'a> {
     /// Deduces the lookup path from the given user query applying sensible defaults
+    /// The user can still manipulate the entries afterwards in a manual fashion
     pub fn deduce(query: &'a LookupQuery) -> Self {
         let entries = if let Some(system) = query.system.as_ref() {
             let knowndlls_entry = if let Some(known_dlls) = system.known_dlls.as_ref() {
@@ -139,6 +146,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// Parse an entry in a .dwp file
+    #[cfg(windows)]
     fn dwp_string_to_context_entry(
         s: &str,
         q: &'a LookupQuery,
@@ -194,6 +202,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// Build a LookupPath from the content of a Dependency Walker .dwp file
+    #[cfg(windows)]
     pub fn from_dwp_file<P: AsRef<Path>>(
         dwp_path: P,
         query: &'a LookupQuery,
@@ -215,13 +224,12 @@ impl<'a> LookupPath<'a> {
         })
     }
 
-    // linearize the lookup context into a single vector of directories
+    /// linearize the lookup context into a single vector of directories
     pub fn search_path(&self) -> Vec<PathBuf> {
         self.entries.iter().flat_map(|e| e.get_path()).collect()
     }
 
-    // looks for a DLL by name
-    // first looks in the known dlls, then in the api set, then in the concrete entries
+    /// look for a DLL by name across the entries
     pub fn search_dll(&self, library: &str) -> Result<Option<LookupResult>, LookupError> {
         for e in &self.entries {
             match e {
@@ -273,6 +281,7 @@ impl<'a> LookupPath<'a> {
         Ok(None)
     }
 
+    /// Look for a DLL in a concrete filesystem folder
     fn search_file_in_folder<P: AsRef<Path>>(
         &self,
         filename: &OsStr,
@@ -304,6 +313,7 @@ impl<'a> LookupPath<'a> {
     }
 }
 
+#[cfg(windows)]
 #[cfg(test)]
 mod tests {
     use crate::common::LookupError;

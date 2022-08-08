@@ -10,9 +10,8 @@ struct Job {
     pub depth: usize,
 }
 
-/// Finds the dependencies of the specified executable within the given context
+/// Find the dependencies of the specified executable within the given path
 /// The dependencies are resolved recursively, in a breadth-first fashion.
-
 pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables, LookupError> {
     let mut executables_to_lookup: Vec<Job> = Vec::new();
     let mut executables_found = Executables::new();
@@ -96,57 +95,31 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                         }
                     }
                 }
-                register_finding(
-                    &mut executables_found,
-                    Executable {
-                        dllname,
-                        depth_first_appearance: lookup_query.depth,
-                        found: true,
-                        details: Some(ExecutableDetails {
-                            is_api_set,
-                            is_system,
-                            is_known_dll,
-                            full_path: r.fullpath,
-                            dependencies,
-                            symbols,
-                        }),
-                    },
-                );
+                executables_found.insert(Executable {
+                    dllname,
+                    depth_first_appearance: lookup_query.depth,
+                    found: true,
+                    details: Some(ExecutableDetails {
+                        is_api_set,
+                        is_system,
+                        is_known_dll,
+                        full_path: r.fullpath,
+                        dependencies,
+                        symbols,
+                    }),
+                });
             } else {
-                register_finding(
-                    &mut executables_found,
-                    Executable {
-                        dllname: lookup_query.dllname,
-                        depth_first_appearance: lookup_query.depth,
-                        found: false,
-                        details: None,
-                    },
-                );
+                executables_found.insert(Executable {
+                    dllname: lookup_query.dllname,
+                    depth_first_appearance: lookup_query.depth,
+                    found: false,
+                    details: None,
+                });
             }
         }
     }
 
     Ok(executables_found)
-}
-
-fn register_finding(executables_found: &mut Executables, new_finding: Executable) {
-    if let Some(older_finding) = executables_found.get(&new_finding.dllname) {
-        eprintln!(
-            "Found two DLLs with the same name! {:?} and {:?}",
-            new_finding
-                .details
-                .as_ref()
-                .and_then(|d| readable_canonical_path(&d.full_path).ok())
-                .unwrap_or(new_finding.dllname),
-            older_finding
-                .details
-                .as_ref()
-                .and_then(|d| readable_canonical_path(&d.full_path).ok())
-                .unwrap_or_else(|| older_finding.dllname.clone()),
-        );
-    } else {
-        executables_found.insert(new_finding);
-    }
 }
 
 #[cfg(test)]

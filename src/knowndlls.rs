@@ -32,7 +32,7 @@ unsafe fn u16_ptr_to_string(ptr: *const u16) -> OsString {
 /// copy-on-write for performance (and a sprinkle of security) reasons.
 ///
 /// They are all located in the system directory and can't be overridden/hijacked.
-pub(crate) fn get_known_dlls() -> anyhow::Result<Vec<String>> {
+pub fn get_known_dlls() -> anyhow::Result<Vec<String>> {
     const KNOWN_DLLS_NAME_BUFFER: &[WCHAR] = &[
         '\\' as _, 'K' as _, 'n' as _, 'o' as _, 'w' as _, 'n' as _, 'D' as _, 'l' as _, 'l' as _,
         's' as _,
@@ -151,7 +151,7 @@ pub(crate) fn get_known_dlls() -> anyhow::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use crate::knowndlls::get_known_dlls;
-    use crate::LookupError;
+    use crate::common::LookupError;
 
     #[cfg(windows)]
     #[test]
