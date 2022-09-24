@@ -1,3 +1,10 @@
+# 1.0.0
+
+- Reworked the CLI
+- Added an option to only report missing symbols/DLLs
+- Refactored the data structures for easier C bindings generation
+- Switched to Rust 2021
+
 # 0.2.0
 
 - Added support for API sets
