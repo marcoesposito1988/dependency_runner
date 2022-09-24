@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 /// Information about a DLL that was mentioned as target for the search
-/// If the file was actually found, additional info is available. Otherwise it represents a 
+/// If the file was actually found, additional info is available. Otherwise it represents a
 /// missing/broken dependency.
 #[derive(Debug, Clone, Serialize)]
 pub struct Executable {
@@ -97,6 +97,14 @@ impl Executables {
         Self {
             index: HashMap::new(),
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.index.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.index.is_empty()
     }
 
     pub fn get(&self, dllname: &str) -> Option<&Executable> {
@@ -232,6 +240,48 @@ impl Executables {
         }
 
         Ok(missing_imports)
+    }
+
+    fn get_notfound_children(&self, e: &Executable) -> Vec<Executable> {
+        if !e.found {
+            return vec![e.clone()];
+        }
+
+        if let Some(details) = &e.details {
+            if let Some(dependencies) = &details.dependencies {
+                let mut deps_with_notfound_children: Vec<Executable> = dependencies
+                    .iter()
+                    .flat_map(|d| {
+                        if let Some(c) = self.get(d) {
+                            self.get_notfound_children(c)
+                        } else {
+                            vec![]
+                        }
+                    })
+                    .collect();
+
+                if !deps_with_notfound_children.is_empty() {
+                    deps_with_notfound_children.extend(vec![e.clone()])
+                }
+                deps_with_notfound_children
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn filter_only_notfound(&self) -> Result<Executables, LookupError> {
+        let mut ret = Executables::new();
+
+        if let Some(root) = self.get_root()? {
+            for e in self.get_notfound_children(root) {
+                ret.insert(e.clone())
+            }
+        }
+
+        Ok(ret)
     }
 
     /// Check that the exporting DLL has all symbols imported by the importing executable file

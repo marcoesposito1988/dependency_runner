@@ -117,6 +117,9 @@ struct DeprunCli {
     #[clap(short, long)]
     /// Activate verbose output
     verbose: bool,
+    #[clap(short = 'e', long)]
+    /// Only show executables with missing dependencies or missing symbols
+    errors_only: bool,
     #[clap(short, long)]
     /// Include system DLLs in the output
     print_system_dlls: bool,
@@ -142,7 +145,7 @@ struct DeprunCli {
     /// Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or if a .vcxproj.user was provided
     vcxproj_configuration: Option<String>,
     #[cfg(not(windows))]
-    #[clap(value_parser, short = 'r', long)]
+    #[clap(value_parser, long)]
     /// Windows partition to use for system DLLs lookup (if not specified, the partition where INPUT lies will be tested and used if valid)
     windows_root: Option<String>,
 }
@@ -321,7 +324,14 @@ fn main() -> anyhow::Result<()> {
         println!("Search path: {}\n", decanonicalized_path.join(", "));
     }
 
-    let executables = dependency_runner::runner::run(&query, &lookup_path)?;
+    let mut executables = dependency_runner::runner::run(&query, &lookup_path)?;
+
+    if args.errors_only {
+        executables = executables.filter_only_notfound()?;
+        if executables.is_empty() {
+            println!("No missing DLLs identified");
+        }
+    }
 
     let sorted_executables = executables.sorted_by_first_appearance();
 
