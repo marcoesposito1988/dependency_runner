@@ -1,7 +1,7 @@
 use super::image::*;
+use dataview::Pod;
 use pelite::util::AlignTo;
 use pelite::{Error, Result};
-use dataview::{Pod};
 use std::{fmt, mem, slice};
 
 //----------------------------------------------------------------
@@ -42,11 +42,9 @@ impl<'a> Schema<'a> {
     pub fn entries(&self) -> Result<Entries<'a>> {
         let header = self.header();
         let entries = self.slice_len(header.EntryOffset, header.Count as usize)?;
-        let hashes = self.slice_len(header.HashOffset, header.Count as usize)?;
         Ok(Entries {
             schema: *self,
             entries,
-            hashes,
         })
     }
 }
@@ -65,7 +63,6 @@ impl<'a> fmt::Debug for Schema<'a> {
 pub struct Entries<'a> {
     schema: Schema<'a>,
     entries: &'a [API_SET_NAMESPACE_ENTRY],
-    hashes: &'a [API_SET_HASH_ENTRY],
 }
 impl<'a> Entries<'a> {
     // pub fn entries(&self) -> &'a [API_SET_NAMESPACE_ENTRY] {
