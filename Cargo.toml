@@ -19,15 +19,15 @@ exclude = [
 pelite = "0.9.0"
 dataview = "1.0.0"
 serde = { version = "1.0.117", features = ["derive"] }
-anyhow = "1.0.34"
-thiserror = "1.0.22"
-clap = { version = "3.2.16", features = ["derive"] }
-serde_json = "1.0.59"
-roxmltree = "0.14.1"
-regex = "1.4.2"
+anyhow = "1.0.65"
+thiserror = "1.0.35"
+clap = { version = "3.2.22", features = ["derive"] }
+serde_json = "1.0.85"
+roxmltree = "0.15.0"
+regex = "1.6.0"
 msvc-demangler = "0.9.0"
-fs-err = "2.5.0"
+fs-err = "2.8.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["winuser", "sysinfoapi"] }
-ntapi = "0.3.6"
+ntapi = "0.4.0"
