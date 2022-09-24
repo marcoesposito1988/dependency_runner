@@ -27,7 +27,10 @@
 //! ```
 //!
 //! let exe_path = "path/to/some/executable.exe";
-//!
+//! # let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+//! # let relative_path =
+//! #     "test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe";
+//! # let exe_path = d.join(relative_path);
 //! let mut query = dependency_runner::query::LookupQuery::deduce_from_executable_location(exe_path).unwrap();
 //! query.parameters.extract_symbols = true;
 //! let lookup_path = dependency_runner::path::LookupPath::deduce(&query);

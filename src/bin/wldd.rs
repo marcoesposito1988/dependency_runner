@@ -53,7 +53,10 @@ fn main() -> anyhow::Result<()> {
 
     let binary_path = fs::canonicalize(binary_path)?;
 
+    #[cfg(not(windows))]
     let mut query = LookupQuery::deduce_from_executable_location(binary_path)?;
+    #[cfg(windows)]
+    let query = LookupQuery::deduce_from_executable_location(binary_path)?;
 
     #[cfg(not(windows))]
     if let Some(overridden_winroot) = args.windows_root {
