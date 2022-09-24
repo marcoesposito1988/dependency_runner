@@ -1,4 +1,4 @@
-//! Routine to perform a recursive lookup according to the parameters in the user-provided query and 
+//! Routine to perform a recursive lookup according to the parameters in the user-provided query and
 //! the lookup path computed from it (and eventually adjusted by the user)
 
 use crate::common::{readable_canonical_path, LookupError};
@@ -6,6 +6,8 @@ use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Execut
 use crate::path::{LookupPath, LookupPathEntry};
 use crate::pe;
 use crate::query::LookupQuery;
+use pelite::pe64::PeFile;
+use pelite::Error;
 
 #[derive(Debug)]
 struct Job {
@@ -47,8 +49,17 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 .unwrap_or(None)
             {
                 let filemap = pelite::FileMap::open(&r.fullpath).map_err(LookupError::IOError)?;
-                let pefile =
-                    pelite::pe64::PeFile::from_bytes(&filemap).map_err(LookupError::PEError)?;
+                let pefile = match PeFile::from_bytes(&filemap) {
+                    Ok(pef) => pef,
+                    Err(e) => {
+                        return match e {
+                            Error::BadMagic | Error::PeMagic => {
+                                Err(LookupError::WrongFileFormatError(e))
+                            }
+                            _ => Err(LookupError::PEError(e)),
+                        }
+                    }
+                };
 
                 let dllname =
                     pe::read_dll_name(&pefile).unwrap_or_else(|_| lookup_query.dllname.clone());

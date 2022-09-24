@@ -26,6 +26,9 @@ pub enum LookupError {
     #[error("OsString could not be converted into a string")]
     OsStringConversionError(OsString),
 
+    #[error("The target file is not a 64-bit DLL")]
+    WrongFileFormatError(pelite::Error),
+
     #[error(transparent)]
     VarError(#[from] std::env::VarError),
     #[error(transparent)]
