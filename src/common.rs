@@ -38,6 +38,8 @@ pub enum LookupError {
     #[error(transparent)]
     PEError(#[from] pelite::Error),
     #[error(transparent)]
+    GoblinError(#[from] goblin::error::Error),
+    #[error(transparent)]
     Utf8Error(#[from] std::str::Utf8Error),
     #[error(transparent)]
     InternalError(#[from] anyhow::Error),

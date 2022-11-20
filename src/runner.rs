@@ -6,8 +6,6 @@ use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Execut
 use crate::path::{LookupPath, LookupPathEntry};
 use crate::pe;
 use crate::query::LookupQuery;
-use pelite::pe64::PeFile;
-use pelite::Error;
 
 #[derive(Debug)]
 struct Job {
@@ -48,21 +46,12 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 .search_dll(&lookup_query.dllname)
                 .unwrap_or(None)
             {
-                let filemap = pelite::FileMap::open(&r.fullpath).map_err(LookupError::IOError)?;
-                let pefile = match PeFile::from_bytes(&filemap) {
-                    Ok(pef) => pef,
-                    Err(e) => {
-                        return match e {
-                            Error::BadMagic | Error::PeMagic => {
-                                Err(LookupError::WrongFileFormatError(e))
-                            }
-                            _ => Err(LookupError::PEError(e)),
-                        }
-                    }
-                };
+                let pefilemap = pe::PEFileMap::new(&r.fullpath)?;
+                let pefile = pe::PEFile::new(&pefilemap)?;
 
-                let dllname =
-                    pe::read_dll_name(&pefile).unwrap_or_else(|_| lookup_query.dllname.clone());
+                let dllname = pefile
+                    .read_dll_name()
+                    .unwrap_or_else(|_| lookup_query.dllname.clone());
                 let is_system = r.location.is_system();
                 let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet(_));
                 let is_known_dll = std::matches!(r.location, LookupPathEntry::KnownDLLs(_));
@@ -78,11 +67,11 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                     // system DLLs have just too many dependencies
                     None
                 } else {
-                    Some(pe::read_dependencies(&pefile)?)
+                    Some(pefile.read_dependencies()?)
                 };
                 let symbols = if !is_api_set && query.parameters.extract_symbols {
-                    let exported = pe::read_exports(&pefile);
-                    let imported = pe::read_imports(&pefile);
+                    let exported = pefile.read_exports();
+                    let imported = pefile.read_imports();
                     if exported.is_ok() && imported.is_ok() {
                         Some(ExecutableSymbols {
                             exported: exported.unwrap(),
