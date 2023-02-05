@@ -156,6 +156,8 @@ Help is welcome in the form of issues and pull request!
     - [x] API refactor
     - [x] documentation improvement
 - v 1.1.0
+    - [x] add goblin PE parser for robustness to alignment issues
+- v 1.2.0
     - [ ] support of manifests
     - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers
@@ -185,7 +187,7 @@ Help is welcome in the form of issues and pull request!
 
 - [Dependencies](https://github.com/lucasg/Dependencies) (thanks to @lucasg for this awesome software, as well as for 
   the amount of information and documentation on the personal website)
-- [pelite](https://github.com/CasualX/pelite), upon which all of this is built
+- [pelite](https://github.com/CasualX/pelite) and [goblin](https://github.com/m4b/goblin), upon which all of this is built
 
 ## License
 LGPLv3
