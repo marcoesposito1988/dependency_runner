@@ -1,8 +1,10 @@
 //! This crate contains the data structures used to hold the results of a dependency scan
-use crate::common::{readable_canonical_path, LookupError};
-use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+use serde::Serialize;
+
+use crate::common::{LookupError, readable_canonical_path};
 
 /// Information about a DLL that was mentioned as target for the search
 /// If the file was actually found, additional info is available. Otherwise it represents a
@@ -193,7 +195,7 @@ impl Executables {
     fn check_imports(&self, name: &str) -> Result<ExecutablesCheckReport, LookupError> {
         let exe = self
             .get(name)
-            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {}", name)))?;
+            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {name}")))?;
 
         if exe.details.as_ref().map(|d| d.is_api_set).unwrap_or(true) {
             return Ok(ExecutablesCheckReport::new());
@@ -203,12 +205,12 @@ impl Executables {
             .details
             .as_ref()
             .ok_or_else(|| {
-                LookupError::ScanError(format!("Could not find details for file {}", name))
+                LookupError::ScanError(format!("Could not find details for file {name}"))
             })?
             .symbols
             .as_ref()
             .ok_or_else(|| {
-                LookupError::ScanError(format!("Could not find symbols for file {}", name))
+                LookupError::ScanError(format!("Could not find symbols for file {name}"))
             })?
             .imported;
 
@@ -292,39 +294,37 @@ impl Executables {
     ) -> Result<ExecutablesCheckReport, LookupError> {
         let exe = self
             .get(importer)
-            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {}", importer)))?;
+            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {importer}")))?;
         let imported_symbols = &exe
             .details
             .as_ref()
             .ok_or_else(|| {
-                LookupError::ScanError(format!("Could not find details for file {}", importer))
+                LookupError::ScanError(format!("Could not find details for file {importer}"))
             })?
             .symbols
             .as_ref()
             .ok_or_else(|| {
-                LookupError::ScanError(format!("Could not find symbols for file {}", importer))
+                LookupError::ScanError(format!("Could not find symbols for file {importer}"))
             })?
             .imported;
         let imported_symbols_this_dep = imported_symbols.get(exporter).ok_or_else(|| {
             LookupError::ScanError(format!(
-                "Could not find list of symbols imported by {} from {}",
-                importer, exporter
-            ))
+                "Could not find list of symbols imported by {importer} from {exporter}"))
         })?;
 
         let dep_exe = self
             .get(exporter)
-            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {}", exporter)))?;
+            .ok_or_else(|| LookupError::ScanError(format!("Could not find file {exporter}")))?;
         let exported_symbols = &dep_exe
             .details
             .as_ref()
             .ok_or_else(|| {
-                LookupError::ScanError(format!("Could not find details for file {}", exporter))
+                LookupError::ScanError(format!("Could not find details for file {exporter}"))
             })?
             .symbols
             .as_ref()
             .ok_or_else(|| {
-                LookupError::ScanError(format!("Could not find symbols for file {}", exporter))
+                LookupError::ScanError(format!("Could not find symbols for file {exporter}"))
             })?
             .exported;
 
@@ -346,8 +346,8 @@ impl Executables {
                         .into_iter()
                         .collect(),
                 )]
-                .into_iter()
-                .collect(),
+                    .into_iter()
+                    .collect(),
             )
         };
 
@@ -360,14 +360,16 @@ impl Executables {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use std::iter::FromIterator;
+
+    use fs_err as fs;
+
     use crate::common::LookupError;
     use crate::executable::Executables;
     use crate::path::LookupPath;
     use crate::query::LookupQuery;
     use crate::runner::run;
-    use fs_err as fs;
-    use std::collections::HashSet;
-    use std::iter::FromIterator;
 
     #[test]
     fn empty_executables() -> Result<(), LookupError> {

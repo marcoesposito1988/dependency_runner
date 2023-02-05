@@ -74,7 +74,7 @@ pub fn path_to_string<P: AsRef<Path>>(p: P) -> String {
 pub fn osstring_to_string(p: &OsStr) -> String {
     p.to_str()
         .map(str::to_owned)
-        .unwrap_or_else(|| format!("{:?}", p))
+        .unwrap_or_else(|| format!("{p:?}"))
 }
 
 #[cfg(test)]

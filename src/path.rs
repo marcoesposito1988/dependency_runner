@@ -272,7 +272,7 @@ impl<'a> LookupPath<'a> {
                 | LookupPathEntry::SystemPath(p)
                 | LookupPathEntry::UserPath(p)
                 | LookupPathEntry::WorkingDir(p) => {
-                    if let Some(r) = self.search_file_in_folder(OsStr::new(library), &p)? {
+                    if let Some(r) = self.search_file_in_folder(OsStr::new(library), p)? {
                         return Ok(Some(LookupResult {
                             location: e.clone(),
                             fullpath: r,

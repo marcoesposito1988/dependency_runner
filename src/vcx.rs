@@ -134,7 +134,7 @@ fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
             if let Some(od) = n.text() {
                 extract_config_from_node(&n).map(|c| (c, od.to_owned()))
             } else {
-                Err(LookupError::ParseError(format!("Empty {} tag", tag)))
+                Err(LookupError::ParseError(format!("Empty {tag} tag")))
             }
         })
         .filter_map(Result::ok)

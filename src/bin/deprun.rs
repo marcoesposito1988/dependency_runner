@@ -66,7 +66,7 @@ fn visit_depth_first(
         let folder = if !e.found {
             "not found".to_owned()
         } else if let Some(details) = &e.details {
-            readable_canonical_path(&details.full_path.parent().unwrap())
+            readable_canonical_path(details.full_path.parent().unwrap())
                 .unwrap_or_else(|_| "INVALID".to_owned())
         } else {
             "not searched".to_owned()
@@ -262,7 +262,7 @@ fn main() -> anyhow::Result<()> {
                 if p.exists() {
                     Some(fs::canonicalize(s))
                 } else {
-                    eprintln!("Skipping non-existing path entry {}", s);
+                    eprintln!("Skipping non-existing path entry {s}");
                     None
                 }
             })
@@ -381,9 +381,9 @@ fn main() -> anyhow::Result<()> {
                     println!("[Importing executable, missing dependencies]\n");
                     for (importer, missing_dependencies) in report.not_found_libraries.iter() {
                         if !missing_dependencies.is_empty() {
-                            println!("{}", importer);
+                            println!("{importer}");
                             for missing_import_dll in missing_dependencies {
-                                println!("\t{}", missing_import_dll);
+                                println!("\t{missing_import_dll}");
                             }
                         }
                     }
@@ -397,9 +397,9 @@ fn main() -> anyhow::Result<()> {
                     println!("[Importing executable, exporting executable, missing symbols]\n");
                     for (filename, missing_imports) in missing_symbols.iter() {
                         if !missing_imports.is_empty() {
-                            println!("{}", filename);
+                            println!("{filename}");
                             for (missing_import_dll, missing_symbols) in missing_imports {
-                                println!("\t{}", missing_import_dll);
+                                println!("\t{missing_import_dll}");
                                 for missing_symbol in missing_symbols {
                                     println!(
                                         "\t\t{}",
@@ -415,7 +415,7 @@ fn main() -> anyhow::Result<()> {
                     println!("No missing symbols detected");
                 }
             }
-            Err(sym_check_error) => println!("{:?}", sym_check_error),
+            Err(sym_check_error) => println!("{sym_check_error:?}"),
         }
     }
 
@@ -429,14 +429,14 @@ fn main() -> anyhow::Result<()> {
         let display = path.display();
 
         // Open a file in write-only mode, returns `io::Result<File>`
-        let mut file = fs::File::create(&path).context(format!("couldn't create {}", display))?;
+        let mut file = fs::File::create(path).context(format!("couldn't create {display}"))?;
 
         // Write to `file`, returns `io::Result<()>`
         file.write_all(js.as_bytes())
-            .context(format!("couldn't write to {}", display))?;
+            .context(format!("couldn't write to {display}"))?;
 
         if args.verbose {
-            println!("successfully wrote to {}", display);
+            println!("successfully wrote to {display}");
         }
     }
 

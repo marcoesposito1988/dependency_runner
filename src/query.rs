@@ -173,11 +173,11 @@ mod tests {
         assert!(&query.target.target_exe.ends_with(relative_path));
         assert_eq!(
             &query.target.working_dir,
-            &fs::canonicalize(&exe_path.parent().unwrap())?
+            &fs::canonicalize(exe_path.parent().unwrap())?
         );
         assert_eq!(
             &query.target.app_dir,
-            &fs::canonicalize(&exe_path.parent().unwrap())?
+            &fs::canonicalize(exe_path.parent().unwrap())?
         );
         assert!(&query.parameters.max_depth.is_none());
         #[cfg(windows)]
