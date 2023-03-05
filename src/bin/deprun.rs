@@ -14,6 +14,7 @@ use dependency_runner::common::{decanonicalize, readable_canonical_path};
 use dependency_runner::executable::{Executable, Executables};
 use dependency_runner::pe::demangle_symbol;
 use dependency_runner::query::LookupQuery;
+use dependency_runner::skim::{skim_dlls, skim_symbols};
 #[cfg(not(windows))]
 use dependency_runner::system::WindowsSystem;
 use fs_err as fs;
@@ -126,6 +127,12 @@ struct DeprunCli {
     #[clap(short, long)]
     /// Check that all imported symbols are found within the (non-system) dependencies
     check_symbols: bool,
+    #[clap(short, long)]
+    /// Start a fuzzy search on the found DLLs, then on the symbols of the selected DLL
+    skim: bool,
+    #[clap(long)]
+    /// Start a fuzzy search on the symbols of all found DLLs
+    skim_symbols: bool,
     #[clap(value_parser, short, long)]
     /// Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)
     working_directory: Option<String>,
@@ -228,7 +235,7 @@ fn main() -> anyhow::Result<()> {
         query.parameters.max_depth = Some(max_depth);
     }
 
-    query.parameters.extract_symbols = args.check_symbols;
+    query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
 
     // overrides (must be last)
 
@@ -335,88 +342,101 @@ fn main() -> anyhow::Result<()> {
 
     let sorted_executables = executables.sorted_by_first_appearance();
 
-    // printing in depth order // TODO: arg to choose output format
-    //
-    // for e in sorted_executables {
-    //     if !e.is_system.unwrap_or(false) {
-    //         if let Some(folder) = e.folder {
-    //             println!("Found executable {}\n", &e.name);
-    //             println!("\tDepth: {}", &e.depth);
-    //             println!("\tcontaining folder: {}", folder);
-    //
-    //             if let Some(deps) = e.dependencies {
-    //                 println!("\tdependencies:");
-    //                 for d in deps {
-    //                     println!("\t\t{}", d);
-    //                 }
-    //             }
-    //         } else {
-    //             println!("Executable {} not found\n", &e.name);
-    //         }
-    //         println!();
-    //
-    //     }
-    // }
+    // print results
+    if !(args.skim || args.skim_symbols) {
+        // printing in depth order // TODO: arg to choose output format
+        //
+        // for e in sorted_executables {
+        //     if !e.is_system.unwrap_or(false) {
+        //         if let Some(folder) = e.folder {
+        //             println!("Found executable {}\n", &e.name);
+        //             println!("\tDepth: {}", &e.depth);
+        //             println!("\tcontaining folder: {}", folder);
+        //
+        //             if let Some(deps) = e.dependencies {
+        //                 println!("\tdependencies:");
+        //                 for d in deps {
+        //                     println!("\t\t{}", d);
+        //                 }
+        //             }
+        //         } else {
+        //             println!("Executable {} not found\n", &e.name);
+        //         }
+        //         println!();
+        //
+        //     }
+        // }
 
-    // printing depth-first
-    println!();
-    if let Some(root) = executables.get_root()? {
-        visit_depth_first(
-            root,
-            0,
-            query.parameters.max_depth,
-            &executables,
-            args.print_system_dlls,
-        );
-    }
+        // printing depth-first
+        println!();
+        if let Some(root) = executables.get_root()? {
+            visit_depth_first(
+                root,
+                0,
+                query.parameters.max_depth,
+                &executables,
+                args.print_system_dlls,
+            );
+        }
 
-    if args.check_symbols {
-        println!("\nChecking symbols...\n");
+        if args.check_symbols {
+            println!("\nChecking symbols...\n");
 
-        let sym_check = executables.check(query.parameters.extract_symbols);
-        match sym_check {
-            Ok(report) => {
-                if !report.not_found_libraries.is_empty() {
-                    println!("Missing libraries detected!");
-                    println!("[Importing executable, missing dependencies]\n");
-                    for (importer, missing_dependencies) in report.not_found_libraries.iter() {
-                        if !missing_dependencies.is_empty() {
-                            println!("{importer}");
-                            for missing_import_dll in missing_dependencies {
-                                println!("\t{missing_import_dll}");
-                            }
-                        }
-                    }
-                    println!();
-                } else {
-                    println!("No missing libraries detected");
-                }
-
-                if let Some(missing_symbols) = report.not_found_symbols {
-                    println!("\nMissing symbols detected!");
-                    println!("[Importing executable, exporting executable, missing symbols]\n");
-                    for (filename, missing_imports) in missing_symbols.iter() {
-                        if !missing_imports.is_empty() {
-                            println!("{filename}");
-                            for (missing_import_dll, missing_symbols) in missing_imports {
-                                println!("\t{missing_import_dll}");
-                                for missing_symbol in missing_symbols {
-                                    println!(
-                                        "\t\t{}",
-                                        demangle_symbol(missing_symbol)
-                                            .as_ref()
-                                            .unwrap_or(missing_symbol)
-                                    );
+            let sym_check = executables.check(query.parameters.extract_symbols);
+            match sym_check {
+                Ok(report) => {
+                    if !report.not_found_libraries.is_empty() {
+                        println!("Missing libraries detected!");
+                        println!("[Importing executable, missing dependencies]\n");
+                        for (importer, missing_dependencies) in report.not_found_libraries.iter() {
+                            if !missing_dependencies.is_empty() {
+                                println!("{importer}");
+                                for missing_import_dll in missing_dependencies {
+                                    println!("\t{missing_import_dll}");
                                 }
                             }
                         }
+                        println!();
+                    } else {
+                        println!("No missing libraries detected");
                     }
-                } else {
-                    println!("No missing symbols detected");
+
+                    if let Some(missing_symbols) = report.not_found_symbols {
+                        println!("\nMissing symbols detected!");
+                        println!("[Importing executable, exporting executable, missing symbols]\n");
+                        for (filename, missing_imports) in missing_symbols.iter() {
+                            if !missing_imports.is_empty() {
+                                println!("{filename}");
+                                for (missing_import_dll, missing_symbols) in missing_imports {
+                                    println!("\t{missing_import_dll}");
+                                    for missing_symbol in missing_symbols {
+                                        println!(
+                                            "\t\t{}",
+                                            demangle_symbol(missing_symbol)
+                                                .as_ref()
+                                                .unwrap_or(missing_symbol)
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        println!("No missing symbols detected");
+                    }
                 }
+                Err(sym_check_error) => println!("{sym_check_error:?}"),
             }
-            Err(sym_check_error) => println!("{sym_check_error:?}"),
         }
+    }
+
+    // skimming
+
+    if args.skim {
+        while let Some(selected_dlls) = skim_dlls(&executables) {
+            skim_symbols(&executables, Some(selected_dlls));
+        }
+    } else if args.skim_symbols {
+        skim_symbols(&executables, None);
     }
 
     // JSON representation

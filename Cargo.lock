@@ -343,6 +343,8 @@ version = "1.2.0"
 dependencies = [
  "anyhow",
  "clap 4.1.4",
+ "crossbeam",
+ "crossbeam-channel",
  "dataview",
  "fs-err",
  "goblin",
