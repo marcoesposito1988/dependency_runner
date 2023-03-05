@@ -1,3 +1,7 @@
+# 1.1.0
+
+- Added goblin-based backend
+
 # 1.0.0
 
 - Reworked the CLI
