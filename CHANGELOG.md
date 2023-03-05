@@ -1,3 +1,7 @@
+# 1.2.0
+
+- Added fuzzy search of DLLs and imported/exported symbols via skim
+
 # 1.1.0
 
 - Added goblin-based backend
