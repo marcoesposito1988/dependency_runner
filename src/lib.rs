@@ -49,5 +49,6 @@ pub mod path;
 pub mod pe;
 pub mod query;
 pub mod runner;
+pub mod skim;
 pub mod system;
 pub mod vcx;
