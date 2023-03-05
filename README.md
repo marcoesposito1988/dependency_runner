@@ -135,12 +135,12 @@ deprun --print-system-dlls path/to/your/executable.exe
 
 #### Browse the DLLs with fuzzy search, browse the symbols imported/exported by the selected DLLs (not supported yet on Windows)
 ```bash
-deprun --print-system-dlls path/to/your/executable.exe
+deprun --skim path/to/your/executable.exe
 ```
 
 #### Browse the symbols imported/exported by the all found DLLs (not supported yet on Windows)
 ```bash
-deprun --print-system-dlls path/to/your/executable.exe
+deprun --skim-symbols path/to/your/executable.exe
 ```
     
 ### wldd
