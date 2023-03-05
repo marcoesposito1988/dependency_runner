@@ -9,6 +9,7 @@ ldd for Windows - and more!
 - portable: debug Windows DLL loading issues from Linux or macOS!
 - ergonomic CLI
 - readable report of missing libraries and symbols
+- browsing of DLLs and symbols with fuzzy search
 - JSON output
 - support for API sets and KnownDLLs (Windows only, at least for now)
 - support for Dependency Walker's `.dwp` files
@@ -50,7 +51,8 @@ These tools are:
 - `deprun`, a further CLI tool that, in contrast to `wldd`, is not limited by the 
     constraint of keeping compatibility with `ldd`. By default, dependencies are printed as a tree 
     for better readability. It supports multiple lookup path specifications 
-    and  output formats, including to a JSON file. It can parse Dependency Walker's `.dwp` files, 
+    and  output formats, including to a JSON file. It includes a DLL and symbol browser with fuzzy search integrated 
+    through skim. It can parse Dependency Walker's `.dwp` files, 
     as well as Visual Studio `.vcxproj` and `.vcxproj.user` files to read the executable location, 
     working directory and user path.
 - both tools are based on the same Rust library, which can be included in Rust 
@@ -130,6 +132,16 @@ list of each node.
 ```bash
 deprun --print-system-dlls path/to/your/executable.exe
 ```
+
+#### Browse the DLLs with fuzzy search, browse the symbols imported/exported by the selected DLLs
+```bash
+deprun --print-system-dlls path/to/your/executable.exe
+```
+
+#### Browse the symbols imported/exported by the all found DLLs
+```bash
+deprun --print-system-dlls path/to/your/executable.exe
+```
     
 ### wldd
 a subset of the above, check with `-h`
@@ -158,6 +170,8 @@ Help is welcome in the form of issues and pull request!
 - v 1.1.0
     - [x] add goblin PE parser for robustness to alignment issues
 - v 1.2.0
+    - [x] add fuzzy search based on skim 
+- v 1.3.0
     - [ ] support of manifests
     - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers
@@ -188,6 +202,7 @@ Help is welcome in the form of issues and pull request!
 - [Dependencies](https://github.com/lucasg/Dependencies) (thanks to @lucasg for this awesome software, as well as for 
   the amount of information and documentation on the personal website)
 - [pelite](https://github.com/CasualX/pelite) and [goblin](https://github.com/m4b/goblin), upon which all of this is built
+- [skim](https://github.com/lotabout/skim) for the great fuzzy search library
 
 ## License
 LGPLv3
