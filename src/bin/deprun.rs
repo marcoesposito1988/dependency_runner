@@ -185,10 +185,10 @@ fn main() -> anyhow::Result<()> {
     let binary_path = fs::canonicalize(binary_path)?;
 
     #[cfg(not(windows))]
-        let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
+    let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
     #[cfg(windows)]
-        let mut query = if binary_path
+    let mut query = if binary_path
         .extension()
         .map(|e| e == "vcxproj")
         .unwrap_or(false)
@@ -239,10 +239,14 @@ fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(not(windows))]
-    { query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim; }
+    {
+        query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
+    }
 
     #[cfg(windows)]
-    { query.parameters.extract_symbols = args.check_symbols; }
+    {
+        query.parameters.extract_symbols = args.check_symbols;
+    }
 
     // overrides (must be last)
 
@@ -304,10 +308,10 @@ fn main() -> anyhow::Result<()> {
     };
 
     #[cfg(not(windows))]
-        let lookup_path = LookupPath::deduce(&query);
+    let lookup_path = LookupPath::deduce(&query);
 
     #[cfg(windows)]
-        let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
+    let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
         dependency_runner::path::LookupPath::from_dwp_file(dwp_file_path, &query)?
     } else {
         dependency_runner::path::LookupPath::deduce(&query)
@@ -350,16 +354,16 @@ fn main() -> anyhow::Result<()> {
     let sorted_executables = executables.sorted_by_first_appearance();
 
     #[cfg(not(windows))]
-        let skim = args.skim;
+    let do_skim = args.skim;
     #[cfg(not(windows))]
-        let skim_symbols = args.skim_symbols;
+    let do_skim_symbols = args.skim_symbols;
     #[cfg(windows)]
-        let skim = false;
+    let do_skim = false;
     #[cfg(windows)]
-        let skim_symbols = false;
+    let do_skim_symbols = false;
 
     // print results
-    if !(skim || skim_symbols) {
+    if !(do_skim || do_skim_symbols) {
         // printing in depth order // TODO: arg to choose output format
         //
         // for e in sorted_executables {
