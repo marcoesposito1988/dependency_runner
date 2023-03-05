@@ -17,8 +17,6 @@ exclude = [
 
 [dependencies]
 multimap = "0.8.3"
-crossbeam = "0.8.2"
-crossbeam-channel = "0.5.7"
 pelite = "0.10.0"
 goblin = "0.6.0"
 dataview = "1.0.0"
@@ -31,6 +29,10 @@ roxmltree = "0.18.0"
 regex = "1.6.0"
 msvc-demangler = "0.9.0"
 fs-err = "2.8.1"
+
+[target.'cfg(not(windows))'.dependencies]
+crossbeam = "0.8.2"
+crossbeam-channel = "0.5.7"
 skim = "0.10.4"
 
 [target.'cfg(windows)'.dependencies]

@@ -14,6 +14,7 @@ use dependency_runner::common::{decanonicalize, readable_canonical_path};
 use dependency_runner::executable::{Executable, Executables};
 use dependency_runner::pe::demangle_symbol;
 use dependency_runner::query::LookupQuery;
+#[cfg(not(windows))]
 use dependency_runner::skim::{skim_dlls, skim_symbols};
 #[cfg(not(windows))]
 use dependency_runner::system::WindowsSystem;
@@ -127,9 +128,11 @@ struct DeprunCli {
     #[clap(short, long)]
     /// Check that all imported symbols are found within the (non-system) dependencies
     check_symbols: bool,
+    #[cfg(not(windows))]
     #[clap(short, long)]
     /// Start a fuzzy search on the found DLLs, then on the symbols of the selected DLL
     skim: bool,
+    #[cfg(not(windows))]
     #[clap(long)]
     /// Start a fuzzy search on the symbols of all found DLLs
     skim_symbols: bool,
@@ -182,10 +185,10 @@ fn main() -> anyhow::Result<()> {
     let binary_path = fs::canonicalize(binary_path)?;
 
     #[cfg(not(windows))]
-    let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
+        let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
     #[cfg(windows)]
-    let mut query = if binary_path
+        let mut query = if binary_path
         .extension()
         .map(|e| e == "vcxproj")
         .unwrap_or(false)
@@ -235,7 +238,11 @@ fn main() -> anyhow::Result<()> {
         query.parameters.max_depth = Some(max_depth);
     }
 
-    query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
+    #[cfg(not(windows))]
+    { query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim; }
+
+    #[cfg(windows)]
+    { query.parameters.extract_symbols = args.check_symbols; }
 
     // overrides (must be last)
 
@@ -297,10 +304,10 @@ fn main() -> anyhow::Result<()> {
     };
 
     #[cfg(not(windows))]
-    let lookup_path = LookupPath::deduce(&query);
+        let lookup_path = LookupPath::deduce(&query);
 
     #[cfg(windows)]
-    let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
+        let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
         dependency_runner::path::LookupPath::from_dwp_file(dwp_file_path, &query)?
     } else {
         dependency_runner::path::LookupPath::deduce(&query)
@@ -342,8 +349,17 @@ fn main() -> anyhow::Result<()> {
 
     let sorted_executables = executables.sorted_by_first_appearance();
 
+    #[cfg(not(windows))]
+        let skim = args.skim;
+    #[cfg(not(windows))]
+        let skim_symbols = args.skim_symbols;
+    #[cfg(windows)]
+        let skim = false;
+    #[cfg(windows)]
+        let skim_symbols = false;
+
     // print results
-    if !(args.skim || args.skim_symbols) {
+    if !(skim || skim_symbols) {
         // printing in depth order // TODO: arg to choose output format
         //
         // for e in sorted_executables {
@@ -430,7 +446,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // skimming
-
+    #[cfg(not(windows))]
     if args.skim {
         while let Some(selected_dlls) = skim_dlls(&executables) {
             skim_symbols(&executables, Some(selected_dlls));

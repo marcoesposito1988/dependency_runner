@@ -9,7 +9,7 @@ ldd for Windows - and more!
 - portable: debug Windows DLL loading issues from Linux or macOS!
 - ergonomic CLI
 - readable report of missing libraries and symbols
-- browsing of DLLs and symbols with fuzzy search
+- browsing of DLLs and symbols with fuzzy search (Unix targets only)
 - JSON output
 - support for API sets and KnownDLLs (Windows only, at least for now)
 - support for Dependency Walker's `.dwp` files
@@ -133,12 +133,12 @@ list of each node.
 deprun --print-system-dlls path/to/your/executable.exe
 ```
 
-#### Browse the DLLs with fuzzy search, browse the symbols imported/exported by the selected DLLs
+#### Browse the DLLs with fuzzy search, browse the symbols imported/exported by the selected DLLs (not supported yet on Windows)
 ```bash
 deprun --print-system-dlls path/to/your/executable.exe
 ```
 
-#### Browse the symbols imported/exported by the all found DLLs
+#### Browse the symbols imported/exported by the all found DLLs (not supported yet on Windows)
 ```bash
 deprun --print-system-dlls path/to/your/executable.exe
 ```
