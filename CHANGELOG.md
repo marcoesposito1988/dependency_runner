@@ -1,3 +1,7 @@
+# 1.2.1
+
+- Updated Cargo dependencies
+
 # 1.2.0
 
 - Added fuzzy search of DLLs and imported/exported symbols via skim
