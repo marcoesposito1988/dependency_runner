@@ -1,3 +1,7 @@
+# 1.2.2
+
+- Disabled skim on Windows
+
 # 1.2.1
 
 - Updated Cargo dependencies
