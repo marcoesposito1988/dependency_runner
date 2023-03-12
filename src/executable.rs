@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use crate::common::{LookupError, readable_canonical_path};
+use crate::common::{readable_canonical_path, LookupError};
 
 /// Information about a DLL that was mentioned as target for the search
 /// If the file was actually found, additional info is available. Otherwise it represents a
@@ -85,7 +85,7 @@ impl ExecutablesCheckReport {
 /// Collection of Executable objects, result of a DLL search
 #[derive(Debug, Clone)]
 pub struct Executables {
-    index: HashMap<String, Executable>,
+    pub index: HashMap<String, Executable>,
 }
 
 impl Default for Executables {
@@ -309,7 +309,8 @@ impl Executables {
             .imported;
         let imported_symbols_this_dep = imported_symbols.get(exporter).ok_or_else(|| {
             LookupError::ScanError(format!(
-                "Could not find list of symbols imported by {importer} from {exporter}"))
+                "Could not find list of symbols imported by {importer} from {exporter}"
+            ))
         })?;
 
         let dep_exe = self
@@ -346,8 +347,8 @@ impl Executables {
                         .into_iter()
                         .collect(),
                 )]
-                    .into_iter()
-                    .collect(),
+                .into_iter()
+                .collect(),
             )
         };
 
