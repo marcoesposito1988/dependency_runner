@@ -6,6 +6,7 @@ use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Execut
 use crate::path::{LookupPath, LookupPathEntry};
 use crate::pe;
 use crate::query::LookupQuery;
+use crate::system::WinFileSystemCache;
 
 #[derive(Debug)]
 struct Job {
@@ -18,6 +19,7 @@ struct Job {
 pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables, LookupError> {
     let mut executables_to_lookup: Vec<Job> = Vec::new();
     let mut executables_found = Executables::new();
+    let mut fs_cache = WinFileSystemCache::new();
 
     let filename = query
         .target
@@ -43,7 +45,7 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 continue;
             }
             if let Some(r) = lookup_path
-                .search_dll(&lookup_query.dllname)
+                .search_dll(&lookup_query.dllname, &mut fs_cache)
                 .unwrap_or(None)
             {
                 let pefilemap = pe::PEFileMap::new(&r.fullpath)?;

@@ -188,18 +188,25 @@ fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
 }
 
 /// Caches the content of already scanned directories, to avoid repeated expensive filesystem access
-pub(crate) struct WinFileSystemCache {
+/// (filesystem access is the true bottleneck in DLL dependency resolution)
+pub struct WinFileSystemCache {
     files_in_dirs: HashMap<String, HashMap<String, PathBuf>>,
 }
 
+impl Default for WinFileSystemCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WinFileSystemCache {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             files_in_dirs: HashMap::new(),
         }
     }
 
-    pub(crate) fn test_file_in_folder_case_insensitive<P: AsRef<Path>, Q: AsRef<Path>>(
+    pub fn test_file_in_folder_case_insensitive<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
         filename: P,
         folder: Q,

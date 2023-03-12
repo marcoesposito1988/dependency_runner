@@ -1,4 +1,4 @@
-//! This is the workhorse of the library: the LookupPath contains the list of possible locations for 
+//! This is the workhorse of the library: the LookupPath contains the list of possible locations for
 //! a dependency, performs the actual lookup and caching of the results and of all filesystem access.
 
 use crate::apiset;
@@ -75,9 +75,6 @@ pub struct LookupPath<'a> {
     /// It is built from a query, depending on the current system configuration
     /// (availability of a Windows root, and its configuration that influences the lookup)
     pub entries: Vec<LookupPathEntry<'a>>,
-    /// Cache of file lookup on disk
-    /// (filesystem access is the true bottleneck in DLL dependency resolution)
-    fs_cache: std::cell::RefCell<WinFileSystemCache>,
 }
 
 impl<'a> LookupPath<'a> {
@@ -144,7 +141,6 @@ impl<'a> LookupPath<'a> {
         Self {
             // system: sys,
             entries,
-            fs_cache: std::cell::RefCell::new(WinFileSystemCache::new()),
         }
     }
 
@@ -233,7 +229,11 @@ impl<'a> LookupPath<'a> {
     }
 
     /// look for a DLL by name across the entries
-    pub fn search_dll(&self, library: &str) -> Result<Option<LookupResult>, LookupError> {
+    pub fn search_dll(
+        &self,
+        library: &str,
+        fs_cache: &mut WinFileSystemCache,
+    ) -> Result<Option<LookupResult>, LookupError> {
         for e in &self.entries {
             match e {
                 LookupPathEntry::KnownDLLs(kd) => {
@@ -256,6 +256,7 @@ impl<'a> LookupPath<'a> {
                             let p = self.search_file_in_folder(
                                 OsStr::new(library),
                                 system32_dir.get_path().unwrap().join("downlevel"),
+                                fs_cache,
                             );
                             return p.map(|p| {
                                 Some(LookupResult {
@@ -272,7 +273,7 @@ impl<'a> LookupPath<'a> {
                 | LookupPathEntry::SystemPath(p)
                 | LookupPathEntry::UserPath(p)
                 | LookupPathEntry::WorkingDir(p) => {
-                    if let Some(r) = self.search_file_in_folder(OsStr::new(library), p)? {
+                    if let Some(r) = self.search_file_in_folder(OsStr::new(library), p, fs_cache)? {
                         return Ok(Some(LookupResult {
                             location: e.clone(),
                             fullpath: r,
@@ -289,10 +290,9 @@ impl<'a> LookupPath<'a> {
         &self,
         filename: &OsStr,
         p: P,
+        fs_cache: &mut WinFileSystemCache,
     ) -> Result<Option<PathBuf>, LookupError> {
-        self.fs_cache
-            .borrow_mut()
-            .test_file_in_folder_case_insensitive(filename, p.as_ref())
+        fs_cache.test_file_in_folder_case_insensitive(filename, p.as_ref())
     }
 
     /// Get the PATH entries specified by the system
@@ -338,15 +338,36 @@ mod tests {
         let path = LookupPath::from_dwp_file(&dwp_file_path, &query)?;
 
         if query.system.is_some() {
-            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs(_)));
-            assert!(std::matches!(path.entries[1], LookupPathEntry::ExecutableDir(_)));
-            assert!(std::matches!(path.entries[2], LookupPathEntry::SystemDir(_)));
-            assert!(std::matches!(path.entries[3], LookupPathEntry::WindowsDir(_)));
+            assert!(std::matches!(
+                path.entries.first().unwrap(),
+                LookupPathEntry::KnownDLLs(_)
+            ));
+            assert!(std::matches!(
+                path.entries[1],
+                LookupPathEntry::ExecutableDir(_)
+            ));
+            assert!(std::matches!(
+                path.entries[2],
+                LookupPathEntry::SystemDir(_)
+            ));
+            assert!(std::matches!(
+                path.entries[3],
+                LookupPathEntry::WindowsDir(_)
+            ));
             assert!(std::matches!(path.entries[4], LookupPathEntry::UserPath(_)));
         } else {
-            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs(_)));
-            assert!(std::matches!(path.entries[1], LookupPathEntry::ExecutableDir(_)));
-            assert!(std::matches!(path.entries[2], LookupPathEntry::SystemDir(_)));
+            assert!(std::matches!(
+                path.entries.first().unwrap(),
+                LookupPathEntry::KnownDLLs(_)
+            ));
+            assert!(std::matches!(
+                path.entries[1],
+                LookupPathEntry::ExecutableDir(_)
+            ));
+            assert!(std::matches!(
+                path.entries[2],
+                LookupPathEntry::SystemDir(_)
+            ));
         }
 
         Ok(())
