@@ -12,7 +12,6 @@ use dependency_runner::runner::run;
 use dependency_runner::system::WindowsSystem;
 
 #[derive(Parser)]
-#[clap(mut_arg("help", |arg| arg.short_alias('h')))]
 #[clap(author, version, about, long_about = None)]
 struct WlddCli {
     #[clap(value_parser)]
