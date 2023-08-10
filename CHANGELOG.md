@@ -1,3 +1,7 @@
+# 1.2.3
+
+- Fixed wldd CLI (issue #3)
+
 # 1.2.2
 
 - Disabled skim on Windows
