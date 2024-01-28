@@ -111,12 +111,7 @@ Default behavior:
 
 -->
 
-#### Checking for missing symbols     
-```bash
-deprun --check-symbols path/to/your/executable.exe
-```
-
-#### Limiting the scanning and output depth    
+#### Limiting the scanning and output depth
 ```bash
 deprun --depth 4 path/to/your/executable.exe
 ```
@@ -125,20 +120,50 @@ deprun --depth 4 path/to/your/executable.exe
 ```bash
 deprun --output-json-path path/to/output.json path/to/your/executable.exe
 ```
-Each executable will be represented by a single object. The dependency tree can be reconstructed from the dependency 
+Each executable will be represented by a single object. The dependency tree can be reconstructed from the dependency
 list of each node.
 
-#### Print recursively all system dependencies
+#### Printing recursively all system dependencies
 ```bash
 deprun --print-system-dlls path/to/your/executable.exe
 ```
 
-#### Browse the DLLs with fuzzy search, browse the symbols imported/exported by the selected DLLs (not supported yet on Windows)
+#### Browsing the DLLs with fuzzy search
 ```bash
 deprun --skim path/to/your/executable.exe
 ```
 
-#### Browse the symbols imported/exported by the all found DLLs (not supported yet on Windows)
+### Lookup path
+
+#### Defining the whole DLL lookup path with a .dwp file (Dependency Walker format)
+```bash
+deprun --dwp_path=path/to/config.dwp path/to/your/executable.exe
+```
+
+#### Scanning the executable produced by a given .vcxproj (Visual Studio) project
+```bash
+deprun --vcx-config=Release path/to/visual_studio_solution/executable.vcxproj
+```
+
+The configuration must only be provided if more than one are listed in the vcxproj file.
+
+
+#### Extending the DLL lookup user path as in the .vcxproj.user file
+```bash
+deprun --vcx-config=Release --vcxproj_user_path=path/to/visual_studio_solution/executable.vcxproj.user path/to/visual_studio_solution/executable.vcxproj
+```
+
+The configuration must only be provided if more than one are listed in the vcxproj file. 
+The executable can also be referred to directly, instead of providing the path to the .vcxproj file.
+
+### DLL symbols
+
+#### Checking for missing symbols     
+```bash
+deprun --check-symbols path/to/your/executable.exe
+```
+
+#### Browsing the symbols imported/exported by the all found DLLs (not supported yet on Windows)
 ```bash
 deprun --skim-symbols path/to/your/executable.exe
 ```
