@@ -1,3 +1,8 @@
+# 1.3.0
+
+- Updated dependencies
+- Removed obsolete FFI usage
+
 # 1.2.4
 
 - Fixed compilation on nightly 1.72.x
