@@ -2,7 +2,6 @@
 //! path manipulation.
 
 use fs_err as fs;
-use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use thiserror::Error;
 
@@ -22,9 +21,6 @@ pub enum LookupError {
 
     #[error("Could not demangle symbol")]
     DemanglingError(String),
-
-    #[error("OsString could not be converted into a string")]
-    OsStringConversionError(OsString),
 
     #[error("The target file is not a 64-bit DLL")]
     WrongFileFormatError(pelite::Error),
@@ -68,13 +64,6 @@ pub fn path_to_string<P: AsRef<Path>>(p: P) -> String {
         .to_str()
         .map(str::to_owned)
         .unwrap_or_else(|| format!("{:?}", p.as_ref()))
-}
-
-/// Shorthand to get some kind of readable representation of an OsStr
-pub fn osstring_to_string(p: &OsStr) -> String {
-    p.to_str()
-        .map(str::to_owned)
-        .unwrap_or_else(|| format!("{p:?}"))
 }
 
 #[cfg(test)]
