@@ -72,10 +72,10 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 let symbols = if !is_api_set && query.parameters.extract_symbols {
                     let exported = pefile.read_exports();
                     let imported = pefile.read_imports();
-                    if exported.is_ok() && imported.is_ok() {
+                    if let (Ok(exported), Ok(imported)) = (exported, imported) {
                         Some(ExecutableSymbols {
-                            exported: exported.unwrap(),
-                            imported: imported.unwrap(),
+                            exported,
+                            imported,
                         })
                     } else {
                         eprintln!(
