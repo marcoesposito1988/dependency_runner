@@ -40,11 +40,11 @@
 
 extern crate thiserror;
 
-mod apiset;
+pub mod apiset;
 pub mod common;
 pub mod executable;
 #[cfg(windows)]
-mod knowndlls;
+pub mod knowndlls;
 pub mod path;
 pub mod pe;
 pub mod query;
