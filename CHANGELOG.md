@@ -1,3 +1,7 @@
+# 1.3.1
+
+- Made all types used in API public
+
 # 1.3.0
 
 - Updated dependencies
