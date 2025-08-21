@@ -20,7 +20,7 @@ struct SymbolItem {
 }
 
 impl SkimItem for SymbolItem {
-    fn text(&self) -> Cow<str> {
+    fn text(&'_ self) -> Cow<'_, str> {
         if let Ok(demangled) = demangle_symbol(&self.symbol) {
             Cow::from(demangled)
         } else {
@@ -52,7 +52,7 @@ struct ExecutableItem {
 }
 
 impl SkimItem for ExecutableItem {
-    fn text(&self) -> Cow<str> {
+    fn text(&'_ self) -> Cow<'_, str> {
         Cow::Borrowed(&self.name)
     }
 
@@ -144,7 +144,7 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
 
         let selected_items = output
             .map(|out| out.selected_items)
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         if !was_aborted {
             Some(
@@ -218,7 +218,7 @@ pub fn skim_dlls(exes: &Executables) -> Option<Vec<String>> {
                                         .map(|ms| {
                                             format!(
                                                 "{} ({})",
-                                                demangle_symbol(&ms).unwrap_or(ms.to_string()),
+                                                demangle_symbol(ms).unwrap_or(ms.to_string()),
                                                 idll
                                             )
                                         })
@@ -235,7 +235,7 @@ pub fn skim_dlls(exes: &Executables) -> Option<Vec<String>> {
                         d.symbols.as_ref().map(|s| {
                             s.exported
                                 .iter()
-                                .map(|ms| demangle_symbol(&ms).unwrap_or(ms.to_string()))
+                                .map(|ms| demangle_symbol(ms).unwrap_or(ms.to_string()))
                                 .collect::<Vec<String>>()
                         })
                     })
@@ -259,7 +259,7 @@ pub fn skim_dlls(exes: &Executables) -> Option<Vec<String>> {
 
         let selected_items = output
             .map(|out| out.selected_items)
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         if !was_aborted {
             Some(

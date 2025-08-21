@@ -233,7 +233,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// look for a DLL by name across the entries
-    pub fn search_dll(&self, library: &str) -> Result<Option<LookupResult>, LookupError> {
+    pub fn search_dll(&self, library: &str) -> Result<Option<LookupResult<'_>>, LookupError> {
         for e in &self.entries {
             match e {
                 LookupPathEntry::KnownDLLs(kd) => {
@@ -296,7 +296,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// Get the PATH entries specified by the system
-    fn system_path_entries(system: &WindowsSystem) -> Vec<LookupPathEntry> {
+    fn system_path_entries(system: &'_ WindowsSystem) -> Vec<LookupPathEntry<'_>> {
         system
             .system_path
             .as_ref()
@@ -307,7 +307,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// Get the PATH entries that were provided by the user when running the program
-    fn user_path_entries(q: &LookupQuery) -> Vec<LookupPathEntry> {
+    fn user_path_entries(q: &'_ LookupQuery) -> Vec<LookupPathEntry<'_>> {
         q.target
             .user_path
             .iter()
