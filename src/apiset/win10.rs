@@ -2,7 +2,7 @@ use super::image::*;
 use dataview::Pod;
 use pelite::util::AlignTo;
 use pelite::{Error, Result};
-use std::{fmt, mem, slice};
+use std::{fmt, slice};
 
 //----------------------------------------------------------------
 
@@ -15,7 +15,7 @@ impl<'a> Schema<'a> {
         if !image.as_ptr().aligned_to(4) {
             return Err(Error::Misaligned);
         }
-        if image.len() < mem::size_of::<API_SET_NAMESPACE_V6>() {
+        if image.len() < size_of::<API_SET_NAMESPACE_V6>() {
             return Err(Error::Bounds);
         }
         let header = unsafe { &*(image.as_ptr() as *const API_SET_NAMESPACE_V6) };
@@ -28,9 +28,9 @@ impl<'a> Schema<'a> {
     fn slice_len<T: Pod>(&self, offset: u32, len: usize) -> Result<&'a [T]> {
         let slice = self
             .image
-            .get(offset as usize..offset as usize + len as usize)
+            .get(offset as usize..offset as usize + len)
             .ok_or(Error::Bounds)?;
-        if !slice.as_ptr().aligned_to(mem::align_of::<T>()) {
+        if !slice.as_ptr().aligned_to(align_of::<T>()) {
             return Err(Error::Misaligned);
         }
         Ok(unsafe { slice::from_raw_parts(slice.as_ptr() as *const T, len) })
