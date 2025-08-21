@@ -19,7 +19,7 @@
 //!
 //! Once all information is available, the recursive DLL lookup can be performed to obtain a
 //! list of interdependent executables. This list represents a directed acyclic graph through the
-//! dependency list for each node, and can be visited according to various strategies.
+//! dependency list for each node and can be visited according to various strategies.
 //!
 //! Sanity checks can be run on the list of executables to find missing DLL dependencies or
 //! symbols therein.  

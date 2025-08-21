@@ -22,7 +22,7 @@ pub struct LookupTarget {
 pub struct LookupParameters {
     /// Maximum library recursion depth for the search
     pub max_depth: Option<usize>,
-    /// Skip searching dependencies of DLLs found in system directories
+    /// Skip searching for dependencies of DLLs found in system directories
     pub skip_system_dlls: bool,
     /// Extract symbols from found DLLs
     pub extract_symbols: bool,
@@ -37,9 +37,9 @@ pub struct LookupQuery {
 }
 
 impl LookupQuery {
-    /// autodetects the settings with sensible defaults
+    /// Autodetects the settings with sensible defaults
     ///
-    /// The working directory will be set to the one containing the executable (i.e. the app_dir)
+    /// The working directory will be set to the one containing the executable (i.e., the app_dir)
     #[cfg(windows)]
     pub fn deduce_from_executable_location<P: AsRef<Path>>(
         target_exe: P,
@@ -67,9 +67,9 @@ impl LookupQuery {
         })
     }
 
-    /// autodetects the settings with sensible defaults
+    /// Autodetects the settings with sensible defaults
     ///
-    /// The working directory will be set to the one containing the executable (i.e. the app_dir)
+    /// The working directory will be set to the one containing the executable (i.e., the app_dir)
     #[cfg(not(windows))]
     pub fn deduce_from_executable_location<P: AsRef<Path>>(
         target_exe: P,
@@ -96,7 +96,7 @@ impl LookupQuery {
         })
     }
 
-    /// update this Query with the information contained in a .vcxproj.user file
+    /// Update this Query with the information contained in a .vcxproj.user file
     ///
     /// Will set the working directory and the PATH to the ones specified in the file
     pub fn update_from_vcx_debugging_configuration(
@@ -111,7 +111,7 @@ impl LookupQuery {
         }
     }
 
-    /// create a Query with the information contained in a .vcxproj file
+    /// Create a Query with the information contained in a .vcxproj file
     ///
     /// Will extract the executable location from the file
     /// If the respective .vcxproj.user file is found, the contained information will be used

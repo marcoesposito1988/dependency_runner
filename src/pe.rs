@@ -66,7 +66,7 @@ impl<'a> PEFile<'a> {
 
     /// read the names of the DLLs this executable depends on
     pub fn read_dependencies(&self) -> Result<Vec<String>, LookupError> {
-        // prefer goblin since it seems to be less fragile
+        // prefer goblin since it seems less fragile
         if let Some(peo) = self.peobject.as_ref() {
             return Ok(peo.libraries.iter().map(|i| i.to_string()).collect());
         }
@@ -93,7 +93,7 @@ impl<'a> PEFile<'a> {
 
     /// Get the list of symbols imported by this file from each of its dependencies
     pub fn read_imports(&self) -> Result<HashMap<String, HashSet<String>>, LookupError> {
-        // prefer goblin since it seems to be less fragile
+        // prefer goblin since it seems less fragile
         if let Some(peo) = self.peobject.as_ref() {
             let imports: multimap::MultiMap<&str, &str> = peo
                 .imports
@@ -143,7 +143,7 @@ impl<'a> PEFile<'a> {
 
     /// Get the list of symbols exported by this DLL
     pub fn read_exports(&self) -> Result<HashSet<String>, LookupError> {
-        // prefer goblin since it seems to be less fragile
+        // prefer goblin since it seems less fragile
         if let Some(peo) = self.peobject.as_ref() {
             return Ok(peo
                 .exports
@@ -155,7 +155,7 @@ impl<'a> PEFile<'a> {
         // To query the exports
         let exports = match self.pefile.unwrap().exports() {
             Ok(exports) => exports,
-            // there is no export directory, e.g. in case of an executable
+            // there is no export directory, e.g., in the case of an executable
             Err(pelite::Error::Null) => return Ok(HashSet::new()),
             Err(e) => return Err(LookupError::PEError(e)),
         };
@@ -168,7 +168,7 @@ impl<'a> PEFile<'a> {
     }
 }
 
-/// Get a humanly-readable version of the (imported or exported) symbol
+/// Get a humanly readable version of the (imported or exported) symbol
 pub fn demangle_symbol(symbol: &str) -> Result<String, LookupError> {
     let flags =
         msvc_demangler::DemangleFlags::llvm() | msvc_demangler::DemangleFlags::NO_MS_KEYWORDS;

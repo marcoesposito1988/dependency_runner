@@ -119,7 +119,7 @@ pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
 ///
 /// Extracted from a .vcxproj file
 /// Grouped by configuration (e.g. Debug, Release, ...)
-/// Contains VcxDebuggingConfiguration extracted from respective .vcxproj.user, if present
+/// Contains VcxDebuggingConfiguration extracted from the respective .vcxproj.user, if present
 #[derive(Debug)]
 pub struct VcxExecutableInformation {
     pub configuration: String,

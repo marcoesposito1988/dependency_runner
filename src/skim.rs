@@ -93,7 +93,7 @@ impl SkimItem for ExecutableItem {
 pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> Option<Vec<String>> {
     let options = SkimOptionsBuilder::default()
         // .height(Some("50%"))  // enabling this causes a bug where the console is not cleaned up upon exit
-        .preview(Some("".to_string())) // preview should be specified to enable preview window
+        .preview(Some("".to_string())) // preview should be specified to enable the preview window
         .preview_window("wrap".to_string())
         .header(Some("Ctrl+g or ESC to quit".to_string()))
         .prompt("Fuzzy query: >".to_string())
@@ -163,7 +163,7 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
 pub fn skim_dlls(exes: &Executables) -> Option<Vec<String>> {
     let options = SkimOptionsBuilder::default()
         // .height(Some("50%")) // enabling this causes a bug where the console is not cleaned up upon exit
-        .preview(Some("".to_string())) // preview should be specified to enable preview window
+        .preview(Some("".to_string())) // preview should be specified to enable the preview window
         .preview_window("wrap".to_string())
         .multi(true)
         .header(Some(

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// Directory/set of DLLs to be searched, and relative metadata
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum LookupPathEntry<'a> {
-    /// The DLL is implicitly loaded by the OS for every process, and not looked up every time
+    /// The DLL is implicitly loaded by the OS for every process and not looked up every time
     KnownDLLs(&'a KnownDLLList),
     /// Directory where the root executable sits
     ExecutableDir(PathBuf),
@@ -82,7 +82,7 @@ pub struct LookupPath<'a> {
 
 impl<'a> LookupPath<'a> {
     /// Deduces the lookup path from the given user query applying sensible defaults
-    /// The user can still manipulate the entries afterwards in a manual fashion
+    /// The user can still manipulate the entries afterward in a manual fashion
     pub fn deduce(query: &'a LookupQuery) -> Self {
         let entries = if let Some(system) = query.system.as_ref() {
             let knowndlls_entry = if let Some(known_dlls) = system.known_dlls.as_ref() {

@@ -6,8 +6,8 @@ use serde::Serialize;
 
 use crate::common::{LookupError, readable_canonical_path};
 
-/// Information about a DLL that was mentioned as target for the search
-/// If the file was actually found, additional info is available. Otherwise it represents a
+/// Information about a DLL that was mentioned as a target for the search
+/// If the file was actually found, additional info is available. Otherwise, it represents a
 /// missing/broken dependency.
 #[derive(Debug, Clone, Serialize)]
 pub struct Executable {
@@ -24,11 +24,11 @@ pub struct Executable {
 /// Metadata for a found executable file
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecutableDetails {
-    /// virtual DLL which just forwards to an implementation
+    /// virtual DLL, which just forwards to an implementation
     pub is_api_set: bool,
     /// located in a system directory (Win or Sys dir)
     pub is_system: bool,
-    /// it is among the KnownDLLs list, or a dependency thereof
+    /// it is among the KnownDLLs list or a dependency thereof
     pub is_known_dll: bool,
     /// full path
     pub full_path: PathBuf,
@@ -49,9 +49,9 @@ pub struct ExecutableSymbols {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecutablesCheckReport {
-    /// Map from dependent to list of non found dependees
+    /// Map from dependent to list of non-found dependees
     pub not_found_libraries: HashMap<String, HashSet<String>>,
-    /// Map from importer to list of non found imported symbols, grouped by dependent DLL
+    /// Map from importer to list of non-found imported symbols, grouped by dependent DLL
     pub not_found_symbols: Option<HashMap<String, HashMap<String, HashSet<String>>>>,
 }
 
@@ -117,7 +117,7 @@ impl Executables {
         self.index.contains_key(&dllname.to_lowercase())
     }
 
-    /// Get the root executable file (i.e. the only one with depth equal to zero)
+    /// Get the root executable file (i.e., the only one with depth equal to zero)
     pub fn get_root(&self) -> Result<Option<&Executable>, LookupError> {
         if self.index.is_empty() {
             return Ok(None);

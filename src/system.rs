@@ -40,9 +40,9 @@ impl KnownDLLList {
 // https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#standard-search-order-for-desktop-applications
 
 /// Description of a Windows system
-/// If running from within Windows we extract the available information from the registry, the
+/// If running from within Windows, we extract the available information from the registry, the
 /// environment variables and the Windows API.
-/// If running in another OS we can only guess the directories, and can't do anything about the PATH
+/// If running in another OS, we can only guess the directories and can't do anything about the PATH
 #[derive(Debug, Clone)]
 pub struct WindowsSystem {
     pub safe_dll_search_mode_on: Option<bool>,
@@ -187,7 +187,7 @@ fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
     return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
 }
 
-/// Caches the content of already scanned directories, to avoid repeated expensive filesystem access
+/// Caches the content of already scanned directories to avoid repeated expensive filesystem access
 pub(crate) struct WinFileSystemCache {
     files_in_dirs: HashMap<String, HashMap<String, PathBuf>>,
 }

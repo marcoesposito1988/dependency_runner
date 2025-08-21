@@ -1,4 +1,4 @@
-//! This create contains utility functions used throughout the library, such as error handling and
+//! This crate contains utility functions used throughout the library, such as error handling and
 //! path manipulation.
 
 use fs_err as fs;
@@ -58,7 +58,7 @@ pub fn readable_canonical_path<P: AsRef<Path>>(p: P) -> Result<String, LookupErr
     )?))
 }
 
-/// Shorthand to get some kind of readable representation of a path
+/// Shorthand to get some kind of readable representation for a path
 pub fn path_to_string<P: AsRef<Path>>(p: P) -> String {
     p.as_ref()
         .to_str()
