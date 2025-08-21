@@ -44,7 +44,8 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
             }
             if let Some(r) = lookup_path
                 .search_dll(&lookup_query.dllname)
-                .unwrap_or(None)
+                .ok()
+                .flatten()
             {
                 let pefilemap = pe::PEFileMap::new(&r.fullpath)?;
                 let pefile = pe::PEFile::new(&pefilemap)?;
