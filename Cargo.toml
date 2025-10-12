@@ -36,5 +36,5 @@ crossbeam-channel = "0.5.15"
 skim = "0.20.5"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3.9", features = ["winuser", "sysinfoapi"] }
+winapi = { version = "0.3.9", features = ["winuser", "sysinfoapi", "ntdef", "ntstatus", "winnt", "minwindef"] }
 ntapi = "0.4.1"
