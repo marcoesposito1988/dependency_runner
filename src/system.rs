@@ -70,12 +70,9 @@ impl WindowsSystem {
         };
 
         let path_str = std::env::var("PATH");
-        let path = path_str
-            .and_then(|s| {
-                Ok(s.split(";")
+        let path = path_str.map(|s| s.split(";")
                     .filter_map(|subs| fs::canonicalize(subs).ok())
                     .collect())
-            })
             .ok();
         let known_dlls = knowndlls::get_known_dlls().ok().map(|v| KnownDLLList {
             entries: v
@@ -178,13 +175,13 @@ fn get_winapi_directory(
 /// Get the path to the System directory (typically C:\Windows\System32)
 #[cfg(windows)]
 fn get_system_directory() -> Result<PathBuf, std::io::Error> {
-    return get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW);
+    get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW)
 }
 
 /// Get the path to the Windows directory (typically C:\Windows)
 #[cfg(windows)]
 fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
-    return get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW);
+    get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW)
 }
 
 /// Caches the content of already scanned directories to avoid repeated expensive filesystem access

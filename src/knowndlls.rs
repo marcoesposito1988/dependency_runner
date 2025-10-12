@@ -41,8 +41,8 @@ pub fn get_known_dlls() -> anyhow::Result<Vec<String>> {
     ];
 
     const KNOWN_DLLS_NAME: UNICODE_STRING = UNICODE_STRING {
-        Length: (KNOWN_DLLS_NAME_BUFFER.len() * size_of::<WCHAR>()) as USHORT,
-        MaximumLength: (KNOWN_DLLS_NAME_BUFFER.len() * size_of::<WCHAR>()) as USHORT,
+        Length: size_of_val(KNOWN_DLLS_NAME_BUFFER) as USHORT,
+        MaximumLength: size_of_val(KNOWN_DLLS_NAME_BUFFER) as USHORT,
         Buffer: KNOWN_DLLS_NAME_BUFFER.as_ptr() as *mut _,
     };
 
@@ -108,7 +108,7 @@ pub fn get_known_dlls() -> anyhow::Result<Vec<String>> {
                 // Check if we have at least one entry. If not, we'll double the buffer size and try
                 // again.
 
-                if (*buffer).Name.Buffer != null_mut() {
+                if !(*buffer).Name.Buffer.is_null() {
                     break;
                 }
 
@@ -120,11 +120,10 @@ pub fn get_known_dlls() -> anyhow::Result<Vec<String>> {
 
             loop {
                 let info: POBJECT_DIRECTORY_INFORMATION = buffer_vec
-                    .as_ptr()
-                    .offset((size_of::<OBJECT_DIRECTORY_INFORMATION>() * i) as isize)
+                    .as_ptr().add(size_of::<OBJECT_DIRECTORY_INFORMATION>() * i)
                     as POBJECT_DIRECTORY_INFORMATION;
 
-                if (*info).Name.Buffer == null_mut() {
+                if (*info).Name.Buffer.is_null() {
                     break;
                 }
 

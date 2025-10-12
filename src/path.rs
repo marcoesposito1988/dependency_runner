@@ -219,7 +219,7 @@ impl<'a> LookupPath<'a> {
             .collect();
         let entries_vecs = lines
             .iter()
-            .map(|e| Self::dwp_string_to_context_entry(e, &query))
+            .map(|e| Self::dwp_string_to_context_entry(e, query))
             .collect::<Result<Vec<Vec<LookupPathEntry>>, LookupError>>()?;
         Ok(Self {
             entries: entries_vecs.concat(),

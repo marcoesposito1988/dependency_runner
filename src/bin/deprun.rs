@@ -31,27 +31,25 @@ fn pick_configuration(
         if configs.contains(&&vcx_config.to_string()) {
             Ok(vcx_config.to_owned().to_string())
         } else {
-            return Err(LookupError::ContextDeductionError(format!(
+            Err(LookupError::ContextDeductionError(format!(
                 "The specified configuration {} was not found in project file {}\n\
                 Available configurations: {:?}",
                 vcx_config, file_path, configs
-            )));
+            )))
         }
+    } else if configs.len() == 1 {
+        let single_config = configs.last().unwrap();
+        eprintln!(
+            "Visual Studio configuration not specified, using {} for file {}",
+            single_config, file_path
+        );
+        Ok(single_config.to_owned().to_string())
     } else {
-        if configs.len() == 1 {
-            let single_config = configs.last().unwrap();
-            eprintln!(
-                "Visual Studio configuration not specified, using {} for file {}",
-                single_config, file_path
-            );
-            Ok(single_config.to_owned().to_string())
-        } else {
-            return Err(LookupError::ContextDeductionError(format!(
-                "Must specify a configuration with --vcx-config=<CONFIG> for project file {}\n\
-                Available configurations: {:?}",
-                file_path, configs
-            )));
-        }
+        Err(LookupError::ContextDeductionError(format!(
+            "Must specify a configuration with --vcx-config=<CONFIG> for project file {}\n\
+            Available configurations: {:?}",
+            file_path, configs
+        )))
     }
 }
 
@@ -312,9 +310,9 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(windows)]
     let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
-        dependency_runner::path::LookupPath::from_dwp_file(dwp_file_path, &query)?
+        LookupPath::from_dwp_file(dwp_file_path, &query)?
     } else {
-        dependency_runner::path::LookupPath::deduce(&query)
+        LookupPath::deduce(&query)
     };
 
     if args.verbose {
