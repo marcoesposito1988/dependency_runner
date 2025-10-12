@@ -147,11 +147,11 @@ struct DeprunCli {
     /// Read the complete DLL lookup path from a .dwp file (Dependency Walker's format)
     dwp_path: Option<String>,
     #[cfg(windows)]
-    #[clap(value_parser, long, conflicts_with = "dwp-path")]
+    #[clap(value_parser, long, conflicts_with = "dwp_path")]
     /// Path to a .vcxproj.user file to parse for PATH entries to be added to the search path
     vcxproj_user_path: Option<String>,
     #[cfg(windows)]
-    #[clap(value_parser, long, conflicts_with = "dwp-path")]
+    #[clap(value_parser, long, conflicts_with = "dwp_path")]
     /// Configuration to use (Debug, Release, ...) if the target is a .vcxproj file, or if a .vcxproj.user was provided
     vcxproj_configuration: Option<String>,
     #[cfg(not(windows))]
