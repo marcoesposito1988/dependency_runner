@@ -1,3 +1,8 @@
+# 1.3.2
+
+- Updated dependencies
+- Fixed conflicts_with arg parsing parameters
+
 # 1.3.1
 
 - Made all types used in API public
