@@ -59,10 +59,50 @@ fn visit_depth_first(
     max_depth: Option<usize>,
     exes: &Executables,
     print_system_dlls: bool,
-) {
-    if (print_system_dlls || !e.details.as_ref().map(|d| d.is_system).unwrap_or(false))
-        && max_depth.map(|d| current_depth < d).unwrap_or(true)
+    filter: &Option<String>,
+) -> bool {
+    if !((print_system_dlls || !e.details.as_ref().map(|d| d.is_system).unwrap_or(false))
+        && max_depth.map(|d| current_depth < d).unwrap_or(true))
     {
+        return false;
+    }
+
+    // Check if any child matches the filter
+    let mut any_child_matches = false;
+    let mut child_outputs = Vec::new();
+
+    if let Some(details) = &e.details {
+        if let Some(dependencies) = &details.dependencies {
+            for d in dependencies {
+                if let Some(de) = exes.get(d) {
+                    let mut child_output = Vec::new();
+                    let matches = visit_depth_first_to_buffer(
+                        de,
+                        current_depth + 1,
+                        max_depth,
+                        exes,
+                        print_system_dlls,
+                        filter,
+                        &mut child_output,
+                    );
+                    if matches {
+                        any_child_matches = true;
+                        child_outputs.push(child_output);
+                    }
+                }
+            }
+        }
+    }
+
+    // Check if this node matches
+    let this_matches = if let Some(filter_str) = filter {
+        e.dllname.to_lowercase().contains(&filter_str.to_lowercase())
+    } else {
+        true
+    };
+
+    // Print this node if it matches or if any child matches
+    if this_matches || any_child_matches {
         let folder = if !e.found {
             "not found".to_owned()
         } else if let Some(details) = &e.details {
@@ -84,22 +124,100 @@ fn visit_depth_first(
             extra_tag
         );
 
-        if let Some(details) = &e.details {
-            if let Some(dependencies) = &details.dependencies {
-                for d in dependencies {
-                    if let Some(de) = exes.get(d) {
-                        visit_depth_first(
-                            de,
-                            current_depth + 1,
-                            max_depth,
-                            exes,
-                            print_system_dlls,
-                        );
+        // Print all matching children
+        for child_output in child_outputs {
+            for line in child_output {
+                println!("{}", line);
+            }
+        }
+
+        return true;
+    }
+
+    false
+}
+
+fn visit_depth_first_to_buffer(
+    e: &Executable,
+    current_depth: usize,
+    max_depth: Option<usize>,
+    exes: &Executables,
+    print_system_dlls: bool,
+    filter: &Option<String>,
+    buffer: &mut Vec<String>,
+) -> bool {
+    if !((print_system_dlls || !e.details.as_ref().map(|d| d.is_system).unwrap_or(false))
+        && max_depth.map(|d| current_depth < d).unwrap_or(true))
+    {
+        return false;
+    }
+
+    // Check if any child matches the filter
+    let mut any_child_matches = false;
+    let mut child_outputs = Vec::new();
+
+    if let Some(details) = &e.details {
+        if let Some(dependencies) = &details.dependencies {
+            for d in dependencies {
+                if let Some(de) = exes.get(d) {
+                    let mut child_output = Vec::new();
+                    let matches = visit_depth_first_to_buffer(
+                        de,
+                        current_depth + 1,
+                        max_depth,
+                        exes,
+                        print_system_dlls,
+                        filter,
+                        &mut child_output,
+                    );
+                    if matches {
+                        any_child_matches = true;
+                        child_outputs.push(child_output);
                     }
                 }
             }
         }
     }
+
+    // Check if this node matches
+    let this_matches = if let Some(filter_str) = filter {
+        e.dllname.to_lowercase().contains(&filter_str.to_lowercase())
+    } else {
+        true
+    };
+
+    // Add this node to buffer if it matches or if any child matches
+    if this_matches || any_child_matches {
+        let folder = if !e.found {
+            "not found".to_owned()
+        } else if let Some(details) = &e.details {
+            readable_canonical_path(details.full_path.parent().unwrap())
+                .unwrap_or_else(|_| "INVALID".to_owned())
+        } else {
+            "not searched".to_owned()
+        };
+        let extra_tag = if e.details.as_ref().map(|d| d.is_known_dll).unwrap_or(false) {
+            "[Known DLL]"
+        } else {
+            ""
+        };
+        buffer.push(format!(
+            "{}{} => {} {}",
+            "\t".repeat(current_depth),
+            e.dllname,
+            folder,
+            extra_tag
+        ));
+
+        // Add all matching children
+        for child_output in child_outputs {
+            buffer.extend(child_output);
+        }
+
+        return true;
+    }
+
+    false
 }
 
 #[derive(Parser)]
@@ -140,6 +258,9 @@ struct DeprunCli {
     #[clap(value_parser, short, long)]
     /// User path to be considered in the DLL lookup path (default: same as the shell deprun runs in)
     user_path: Option<String>,
+    #[clap(value_parser, short, long)]
+    /// Filter output to show only DLLs matching this string (case-insensitive substring match). Parent DLLs in the dependency tree are still shown to preserve the tree structure.
+    filter: Option<String>,
     #[cfg(windows)]
     #[clap(value_parser, long)]
     /// Read the complete DLL lookup path from a .dwp file (Dependency Walker's format)
@@ -394,6 +515,7 @@ fn main() -> anyhow::Result<()> {
                 query.parameters.max_depth,
                 &executables,
                 args.print_system_dlls,
+                &args.filter,
             );
         }
 
@@ -479,4 +601,290 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::sync::Once;
+
+    static INIT: Once = Once::new();
+
+    fn ensure_binary_built() {
+        INIT.call_once(|| {
+            let output = std::process::Command::new("cargo")
+                .args(&["build", "--bin", "deprun"])
+                .output()
+                .expect("Failed to build deprun binary");
+
+            if !output.status.success() {
+                panic!(
+                    "Failed to build deprun binary:\n{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn test_deprun_basic() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        if !exe_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", exe_path);
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or_else(|_| "target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(&deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .output()
+            .unwrap_or_else(|_| panic!("Failed to execute deprun at {:?}. Ensure the binary is built.", deprun_bin));
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Check that output contains the executable and its dependency
+        assert!(stdout.contains("DepRunTest.exe"));
+        assert!(stdout.contains("DepRunTestLib.dll"));
+    }
+
+    #[test]
+    fn test_deprun_with_filter() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        if !exe_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", exe_path);
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(&deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .arg("--filter")
+            .arg("DepRunTestLib")
+            .output()
+            .unwrap_or_else(|_| panic!("Failed to execute deprun at {:?}. Ensure the binary is built.", deprun_bin));
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Check that filtered output contains both the parent and the matching DLL
+        assert!(stdout.contains("DepRunTest.exe"), "Parent DLL should be shown");
+        assert!(stdout.contains("DepRunTestLib.dll"), "Matching DLL should be shown");
+    }
+
+    #[test]
+    fn test_deprun_with_filter_no_match() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        if !exe_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", exe_path);
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .arg("--filter")
+            .arg("NonExistentDLL")
+            .output()
+            .expect("Failed to execute deprun");
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // With no matches, the root should not be printed either
+        assert!(!stdout.contains("DepRunTestLib.dll"));
+    }
+
+    #[test]
+    fn test_deprun_max_depth() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        if !exe_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", exe_path);
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .arg("--max-depth")
+            .arg("1")
+            .output()
+            .expect("Failed to execute deprun");
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // With depth 1, should only show the root executable
+        assert!(stdout.contains("DepRunTest.exe"));
+        // Should not show dependencies
+        assert!(!stdout.contains("DepRunTestLib.dll"));
+    }
+
+    #[test]
+    fn test_deprun_errors_only() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        if !exe_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", exe_path);
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(&deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .arg("--errors-only")
+            .output()
+            .unwrap_or_else(|_| panic!("Failed to execute deprun at {:?}. Ensure the binary is built.", deprun_bin));
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        #[cfg(windows)]
+        {
+            // Since this is a valid executable with all dependencies, should show no errors
+            assert!(stdout.contains("No missing DLLs identified"));
+        }
+        #[cfg(not(windows))]
+        {
+            assert!(stdout.contains("DepRunTestLib.dll") && !stdout.contains("DepRunTestLib.dll => not found"));
+        }
+    }
+
+    #[test]
+    fn test_deprun_json_output() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-same-output/bin/Debug/DepRunTest.exe");
+
+        if !exe_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", exe_path);
+            return;
+        }
+
+        let temp_dir = std::env::temp_dir();
+        let json_output = temp_dir.join("deprun_test_output.json");
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(&deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .arg("--output-json-path")
+            .arg(json_output.to_str().unwrap())
+            .output()
+            .unwrap_or_else(|_| panic!("Failed to execute deprun at {:?}. Ensure the binary is built.", deprun_bin));
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        assert!(json_output.exists(), "JSON output file should be created");
+
+        // Read and validate JSON
+        let json_content = std::fs::read_to_string(&json_output).expect("Failed to read JSON output");
+        assert!(json_content.contains("DepRunTest.exe"));
+        assert!(json_content.contains("DepRunTestLib.dll"));
+
+        // Clean up
+        let _ = std::fs::remove_file(json_output);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_deprun_vcxproj() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let vcxproj_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build/DepRunTest/DepRunTest.vcxproj");
+
+        if !vcxproj_path.exists() {
+            eprintln!("Test file not found, skipping test: {:?}", vcxproj_path);
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(deprun_bin)
+            .arg(vcxproj_path.to_str().unwrap())
+            .arg("--vcxproj-configuration")
+            .arg("Debug")
+            .output()
+            .expect("Failed to execute deprun");
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Check that output contains the executable
+        assert!(stdout.contains("DepRunTest.exe"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_deprun_vcxproj_user() {
+        ensure_binary_built();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let exe_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/Debug/DepRunTest.exe");
+        let vcxproj_user_path = manifest_dir
+            .join("test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/DepRunTest.vcxproj.user");
+
+        if !exe_path.exists() || !vcxproj_user_path.exists() {
+            eprintln!("Test files not found, skipping test");
+            return;
+        }
+
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or("target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(deprun_bin)
+            .arg(exe_path.to_str().unwrap())
+            .arg("--vcxproj-user-path")
+            .arg(vcxproj_user_path.to_str().unwrap())
+            .arg("--vcxproj-configuration")
+            .arg("Debug")
+            .output()
+            .expect("Failed to execute deprun");
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "deprun command failed:\n{}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert!(stdout.contains("DepRunTest.exe"));
+        assert!(stdout.contains("DepRunTestLib.dll"));
+    }
 }
