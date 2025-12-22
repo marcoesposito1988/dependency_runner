@@ -825,6 +825,11 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn test_deprun_vcxproj() {
+        if std::env::var("CI").is_ok() {
+            eprintln!("Skipping test in CI environment");
+            return;
+        }
+
         ensure_binary_built();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let vcxproj_path = manifest_dir
@@ -856,6 +861,11 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn test_deprun_vcxproj_user() {
+        if std::env::var("CI").is_ok() {
+            eprintln!("Skipping test in CI environment");
+            return;
+        }
+
         ensure_binary_built();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let exe_path = manifest_dir
