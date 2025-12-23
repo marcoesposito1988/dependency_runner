@@ -1,3 +1,8 @@
+# 1.3.3
+
+- Support multiple target binaries in deprun
+- Added a filter option to deprun
+- 
 # 1.3.2
 
 - Updated dependencies
