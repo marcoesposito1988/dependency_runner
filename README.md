@@ -116,6 +116,17 @@ Default behavior:
 deprun --depth 4 path/to/your/executable.exe
 ```
 
+#### Looking for DLLs depending on a given one
+```bash
+deprun --filter mydep path/to/your/executable.exe
+```
+
+or also:
+
+```bash
+deprun --filter mydep path/to/your/dlls/*.dll
+```
+
 #### Saving the scan results to a JSON file
 ```bash
 deprun --output-json-path path/to/output.json path/to/your/executable.exe
@@ -197,6 +208,8 @@ Help is welcome in the form of issues and pull request!
 - v 1.2.0
     - [x] add fuzzy search based on skim 
 - v 1.3.0
+    - [x] add support for multiple targets and filtering DLL names
+- v 1.4.0
     - [ ] support of manifests
     - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers
