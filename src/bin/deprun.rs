@@ -223,9 +223,9 @@ fn visit_depth_first_to_buffer(
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct DeprunCli {
-    #[clap(value_parser)]
-    /// Target file (.exe, .dll or .vcxproj)
-    input: String,
+    #[clap(value_parser, required = true)]
+    /// Target file(s) (.exe, .dll or .vcxproj). Supports glob patterns like "*.dll"
+    inputs: Vec<String>,
     #[clap(value_parser, short, long)]
     /// Path for output in JSON format
     output_json_path: Option<String>,
@@ -261,6 +261,9 @@ struct DeprunCli {
     #[clap(value_parser, short, long)]
     /// Filter output to show only DLLs matching this string (case-insensitive substring match). Parent DLLs in the dependency tree are still shown to preserve the tree structure.
     filter: Option<String>,
+    #[clap(value_parser, short, long)]
+    /// When filtering, if passed multiple targets, omit the output of non-matching DLLs
+    quiet: bool,
     #[cfg(windows)]
     #[clap(value_parser, long)]
     /// Read the complete DLL lookup path from a .dwp file (Dependency Walker's format)
@@ -282,321 +285,373 @@ struct DeprunCli {
 fn main() -> anyhow::Result<()> {
     let args = DeprunCli::parse();
 
-    let binary_path = PathBuf::from(args.input);
+    // Expand glob patterns and collect all binary paths
+    let mut binary_paths = Vec::new();
+    for input in &args.inputs {
+        let glob_matches = glob::glob(input)
+            .with_context(|| format!("Invalid glob pattern: {}", input))?;
 
-    if !binary_path.exists() {
-        eprintln!(
-            "Specified file not found at {}\nCurrent working directory: {}",
-            binary_path.to_str().unwrap(),
-            std::env::current_dir()?.to_str().unwrap(),
-        );
+        let mut found_match = false;
+        for entry in glob_matches {
+            match entry {
+                Ok(path) => {
+                    if path.is_file() {
+                        binary_paths.push(path);
+                        found_match = true;
+                    } else if path.is_dir() {
+                        eprintln!(
+                            "Skipping directory: {}",
+                            path.to_str().unwrap_or("<invalid path>")
+                        );
+                    }
+                }
+                Err(e) => eprintln!("Error processing glob match: {}", e),
+            }
+        }
+
+        if !found_match {
+            eprintln!(
+                "No files found matching pattern '{}'\nCurrent working directory: {}",
+                input,
+                std::env::current_dir()?.to_str().unwrap_or("<invalid>"),
+            );
+        }
+    }
+
+    if binary_paths.is_empty() {
+        eprintln!("No valid files to process");
         std::process::exit(1);
     }
 
-    if binary_path.is_dir() {
-        eprintln!(
-            "The specified path is a directory, not a PE executable file: {}",
-            binary_path.to_str().unwrap(),
-        );
-        std::process::exit(1);
-    }
+    // Process each binary
+    let max_path_len = binary_paths.iter().map(|p| p.to_string_lossy().len()).max().unwrap_or(0);
+    let message_len = 22 + max_path_len;
 
-    let binary_path = fs::canonicalize(binary_path)?;
+    for (idx, binary_path) in binary_paths.iter().enumerate() {
+        if binary_paths.len() > 1 && !args.quiet {
+            println!("\n{}\nProcessing {} / {} : {}\n{}\n",
+                     "=".repeat(message_len), idx + 1, binary_paths.len(),
+                     binary_path.to_str().unwrap_or("<invalid>"),
+                     "=".repeat(message_len));
+        }
 
-    #[cfg(not(windows))]
-    let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
+        let binary_path = fs::canonicalize(binary_path)?;
 
-    #[cfg(windows)]
-    let mut query = if binary_path
-        .extension()
-        .map(|e| e == "vcxproj")
-        .unwrap_or(false)
-    {
-        let vcxproj_path = &binary_path;
-        let vcx_exe_info_per_config = parse_vcxproj(&vcxproj_path)?;
-        let vcx_config_to_use = pick_configuration(
-            &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
-            &args.vcxproj_configuration,
-            vcxproj_path
-                .to_str()
-                .ok_or(LookupError::ContextDeductionError(format!(
-                    "Could not open {:?} as a .vcxproj file",
-                    vcxproj_path
-                )))?,
-        )?;
-        let vcx_exe_info = &vcx_exe_info_per_config[&vcx_config_to_use];
-
-        LookupQuery::read_from_vcx_executable_information(vcx_exe_info)?
-    } else {
+        #[cfg(not(windows))]
         let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
-        if let Some(vcxproj_user_path_str) = args.vcxproj_user_path {
-            let vcxproj_user_path = std::path::Path::new(&vcxproj_user_path_str);
-            if !vcxproj_user_path.exists() || vcxproj_user_path.is_dir() {
-                eprintln!(
-                    "Specified vcxproj.user file not found at {}",
-                    vcxproj_user_path_str,
-                );
-                std::process::exit(1);
-            }
-
-            let vcx_debug_info_per_config = parse_vcxproj_user(&vcxproj_user_path)?;
-            let config_to_use = pick_configuration(
-                &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
+        #[cfg(windows)]
+        let mut query = if binary_path
+            .extension()
+            .map(|e| e == "vcxproj")
+            .unwrap_or(false)
+        {
+            let vcxproj_path = &binary_path;
+            let vcx_exe_info_per_config = parse_vcxproj(&vcxproj_path)?;
+            let vcx_config_to_use = pick_configuration(
+                &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
                 &args.vcxproj_configuration,
-                &vcxproj_user_path_str,
+                vcxproj_path
+                    .to_str()
+                    .ok_or(LookupError::ContextDeductionError(format!(
+                        "Could not open {:?} as a .vcxproj file",
+                        vcxproj_path
+                    )))?,
             )?;
-            let vcx_debug_info = &vcx_debug_info_per_config[&config_to_use];
+            let vcx_exe_info = &vcx_exe_info_per_config[&vcx_config_to_use];
 
-            query.update_from_vcx_debugging_configuration(vcx_debug_info);
-        }
-        query
-    };
-
-    if let Some(max_depth) = args.max_depth {
-        query.parameters.max_depth = Some(max_depth);
-    }
-
-    #[cfg(not(windows))]
-    {
-        query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
-    }
-
-    #[cfg(windows)]
-    {
-        query.parameters.extract_symbols = args.check_symbols;
-    }
-
-    // overrides (must be last)
-
-    #[cfg(not(windows))]
-    if let Some(overridden_winroot) = args.windows_root {
-        query.system = WindowsSystem::from_root(overridden_winroot);
-    } else if args.verbose {
-        if let Some(system) = &query.system {
-            println!(
-                "Windows partition root not specified, assumed {}",
-                path_to_string(&system.sys_dir)
-            );
+            LookupQuery::read_from_vcx_executable_information(vcx_exe_info)?
         } else {
-            println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
-        }
-    }
+            let mut query = LookupQuery::deduce_from_executable_location(&binary_path)?;
 
-    if let Some(overridden_workdir) = args.working_directory {
-        query.target.working_dir = PathBuf::from(overridden_workdir);
-    } else if args.verbose {
-        println!(
-            "Working directory not specified, assuming directory of executable: {}",
-            decanonicalize(query.target.working_dir.to_str().unwrap_or("---"))
-        );
-    }
-    if let Some(overridden_path) = args.user_path {
-        let canonicalized_path: Vec<PathBuf> = overridden_path
-            .split(';')
-            .filter_map(|s| {
-                let p = std::path::Path::new(s);
-                if p.exists() {
-                    Some(fs::canonicalize(s))
-                } else {
-                    eprintln!("Skipping non-existing path entry {s}");
-                    None
+            if let Some(vcxproj_user_path_str) = &args.vcxproj_user_path {
+                let vcxproj_user_path = std::path::Path::new(&vcxproj_user_path_str);
+                if !vcxproj_user_path.exists() || vcxproj_user_path.is_dir() {
+                    eprintln!(
+                        "Specified vcxproj.user file not found at {}",
+                        vcxproj_user_path_str,
+                    );
+                    std::process::exit(1);
                 }
-            })
-            .collect::<Result<Vec<_>, std::io::Error>>()?;
-        query.target.user_path.extend(canonicalized_path);
-    } else if args.verbose {
+
+                let vcx_debug_info_per_config = parse_vcxproj_user(&vcxproj_user_path)?;
+                let config_to_use = pick_configuration(
+                    &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
+                    &args.vcxproj_configuration,
+                    &vcxproj_user_path_str,
+                )?;
+                let vcx_debug_info = &vcx_debug_info_per_config[&config_to_use];
+
+                query.update_from_vcx_debugging_configuration(vcx_debug_info);
+            }
+            query
+        };
+
+        if let Some(max_depth) = args.max_depth {
+            query.parameters.max_depth = Some(max_depth);
+        }
+
+        #[cfg(not(windows))]
+        {
+            query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
+        }
+
         #[cfg(windows)]
         {
-            let decanonicalized_path: Vec<String> = query
-                .target
-                .user_path
+            query.parameters.extract_symbols = args.check_symbols;
+        }
+
+        // overrides (must be last)
+
+        #[cfg(not(windows))]
+        if let Some(overridden_winroot) = &args.windows_root {
+            query.system = WindowsSystem::from_root(overridden_winroot.clone());
+        } else if args.verbose {
+            if let Some(system) = &query.system {
+                println!(
+                    "Windows partition root not specified, assumed {}",
+                    path_to_string(&system.sys_dir)
+                );
+            } else {
+                println!("Windows partition root not specified, and executable doesn't lie in one; system DLL imports will not be resolved");
+            }
+        }
+
+        if let Some(overridden_workdir) = &args.working_directory {
+            query.target.working_dir = PathBuf::from(overridden_workdir);
+        } else if args.verbose {
+            println!(
+                "Working directory not specified, assuming directory of executable: {}",
+                decanonicalize(query.target.working_dir.to_str().unwrap_or("---"))
+            );
+        }
+        if let Some(overridden_path) = &args.user_path {
+            let canonicalized_path: Vec<PathBuf> = overridden_path
+                .split(';')
+                .filter_map(|s| {
+                    let p = std::path::Path::new(s);
+                    if p.exists() {
+                        Some(fs::canonicalize(s))
+                    } else {
+                        eprintln!("Skipping non-existing path entry {s}");
+                        None
+                    }
+                })
+                .collect::<Result<Vec<_>, std::io::Error>>()?;
+            query.target.user_path.extend(canonicalized_path);
+        } else if args.verbose {
+            #[cfg(windows)]
+            {
+                let decanonicalized_path: Vec<String> = query
+                    .target
+                    .user_path
+                    .iter()
+                    .map(|p| decanonicalize(p.to_str().unwrap()))
+                    .collect();
+                println!(
+                    "User path not specified, taken that of current shell: {}",
+                    decanonicalized_path.join(", ")
+                );
+            }
+            #[cfg(not(windows))]
+            println!(
+                "User path not specified, assumed: {:?}",
+                query.target.user_path
+            );
+        };
+
+        #[cfg(not(windows))]
+        let lookup_path = LookupPath::deduce(&query);
+
+        #[cfg(windows)]
+        let lookup_path = if let Some(dwp_file_path) = &args.dwp_path {
+            LookupPath::from_dwp_file(dwp_file_path.clone(), &query)?
+        } else {
+            LookupPath::deduce(&query)
+        };
+
+        if args.verbose {
+            println!(
+                "Looking for dependencies of binary {}",
+                readable_canonical_path(&binary_path)?
+            );
+            if let Some(kd) = query.system.as_ref().and_then(|s| s.known_dlls.as_ref()) {
+                println!("Known DLLs: {:?}", kd.entries.keys());
+            }
+            if query
+                .system
+                .as_ref()
+                .map(|s| s.apiset_map.is_some())
+                .unwrap_or(false)
+            {
+                println!("API set map available");
+            }
+            let lookup_path = LookupPath::deduce(&query);
+            let decanonicalized_path: Vec<String> = lookup_path
+                .search_path()
                 .iter()
                 .map(|p| decanonicalize(p.to_str().unwrap()))
                 .collect();
-            println!(
-                "User path not specified, taken that of current shell: {}",
-                decanonicalized_path.join(", ")
-            );
+            println!("Search path: {}\n", decanonicalized_path.join(", "));
         }
+
+        let mut executables = dependency_runner::runner::run(&query, &lookup_path)?;
+
+        if args.errors_only {
+            executables = executables.filter_only_notfound()?;
+            if executables.is_empty() {
+                println!("No missing DLLs identified");
+            }
+        }
+
+        let sorted_executables = executables.sorted_by_first_appearance();
+
         #[cfg(not(windows))]
-        println!(
-            "User path not specified, assumed: {:?}",
-            query.target.user_path
-        );
-    };
+        let do_skim = args.skim;
+        #[cfg(not(windows))]
+        let do_skim_symbols = args.skim_symbols;
+        #[cfg(windows)]
+        let do_skim = false;
+        #[cfg(windows)]
+        let do_skim_symbols = false;
 
-    #[cfg(not(windows))]
-    let lookup_path = LookupPath::deduce(&query);
+        // print results
+        if !(do_skim || do_skim_symbols) {
+            // printing in depth order // TODO: arg to choose output format
+            //
+            // for e in sorted_executables {
+            //     if !e.is_system.unwrap_or(false) {
+            //         if let Some(folder) = e.folder {
+            //             println!("Found executable {}\n", &e.name);
+            //             println!("\tDepth: {}", &e.depth);
+            //             println!("\tcontaining folder: {}", folder);
+            //
+            //             if let Some(deps) = e.dependencies {
+            //                 println!("\tdependencies:");
+            //                 for d in deps {
+            //                     println!("\t\t{}", d);
+            //                 }
+            //             }
+            //         } else {
+            //             println!("Executable {} not found\n", &e.name);
+            //         }
+            //         println!();
+            //
+            //     }
+            // }
 
-    #[cfg(windows)]
-    let lookup_path = if let Some(dwp_file_path) = args.dwp_path {
-        LookupPath::from_dwp_file(dwp_file_path, &query)?
-    } else {
-        LookupPath::deduce(&query)
-    };
+            // printing depth-first
+            // println!();
+            if let Some(root) = executables.get_root()? {
+                visit_depth_first(
+                    root,
+                    0,
+                    query.parameters.max_depth,
+                    &executables,
+                    args.print_system_dlls,
+                    &args.filter,
+                );
+            }
 
-    if args.verbose {
-        println!(
-            "Looking for dependencies of binary {}",
-            readable_canonical_path(&binary_path)?
-        );
-        if let Some(kd) = query.system.as_ref().and_then(|s| s.known_dlls.as_ref()) {
-            println!("Known DLLs: {:?}", kd.entries.keys());
-        }
-        if query
-            .system
-            .as_ref()
-            .map(|s| s.apiset_map.is_some())
-            .unwrap_or(false)
-        {
-            println!("API set map available");
-        }
-        let lookup_path = LookupPath::deduce(&query);
-        let decanonicalized_path: Vec<String> = lookup_path
-            .search_path()
-            .iter()
-            .map(|p| decanonicalize(p.to_str().unwrap()))
-            .collect();
-        println!("Search path: {}\n", decanonicalized_path.join(", "));
-    }
+            if args.check_symbols {
+                println!("\nChecking symbols...\n");
 
-    let mut executables = dependency_runner::runner::run(&query, &lookup_path)?;
-
-    if args.errors_only {
-        executables = executables.filter_only_notfound()?;
-        if executables.is_empty() {
-            println!("No missing DLLs identified");
-        }
-    }
-
-    let sorted_executables = executables.sorted_by_first_appearance();
-
-    #[cfg(not(windows))]
-    let do_skim = args.skim;
-    #[cfg(not(windows))]
-    let do_skim_symbols = args.skim_symbols;
-    #[cfg(windows)]
-    let do_skim = false;
-    #[cfg(windows)]
-    let do_skim_symbols = false;
-
-    // print results
-    if !(do_skim || do_skim_symbols) {
-        // printing in depth order // TODO: arg to choose output format
-        //
-        // for e in sorted_executables {
-        //     if !e.is_system.unwrap_or(false) {
-        //         if let Some(folder) = e.folder {
-        //             println!("Found executable {}\n", &e.name);
-        //             println!("\tDepth: {}", &e.depth);
-        //             println!("\tcontaining folder: {}", folder);
-        //
-        //             if let Some(deps) = e.dependencies {
-        //                 println!("\tdependencies:");
-        //                 for d in deps {
-        //                     println!("\t\t{}", d);
-        //                 }
-        //             }
-        //         } else {
-        //             println!("Executable {} not found\n", &e.name);
-        //         }
-        //         println!();
-        //
-        //     }
-        // }
-
-        // printing depth-first
-        println!();
-        if let Some(root) = executables.get_root()? {
-            visit_depth_first(
-                root,
-                0,
-                query.parameters.max_depth,
-                &executables,
-                args.print_system_dlls,
-                &args.filter,
-            );
-        }
-
-        if args.check_symbols {
-            println!("\nChecking symbols...\n");
-
-            let sym_check = executables.check(query.parameters.extract_symbols);
-            match sym_check {
-                Ok(report) => {
-                    if !report.not_found_libraries.is_empty() {
-                        println!("Missing libraries detected!");
-                        println!("[Importing executable, missing dependencies]\n");
-                        for (importer, missing_dependencies) in report.not_found_libraries.iter() {
-                            if !missing_dependencies.is_empty() {
-                                println!("{importer}");
-                                for missing_import_dll in missing_dependencies {
-                                    println!("\t{missing_import_dll}");
-                                }
-                            }
-                        }
-                        println!();
-                    } else {
-                        println!("No missing libraries detected");
-                    }
-
-                    if let Some(missing_symbols) = report.not_found_symbols {
-                        println!("\nMissing symbols detected!");
-                        println!("[Importing executable, exporting executable, missing symbols]\n");
-                        for (filename, missing_imports) in missing_symbols.iter() {
-                            if !missing_imports.is_empty() {
-                                println!("{filename}");
-                                for (missing_import_dll, missing_symbols) in missing_imports {
-                                    println!("\t{missing_import_dll}");
-                                    for missing_symbol in missing_symbols {
-                                        println!(
-                                            "\t\t{}",
-                                            demangle_symbol(missing_symbol)
-                                                .as_ref()
-                                                .unwrap_or(missing_symbol)
-                                        );
+                let sym_check = executables.check(query.parameters.extract_symbols);
+                match sym_check {
+                    Ok(report) => {
+                        if !report.not_found_libraries.is_empty() {
+                            println!("Missing libraries detected!");
+                            println!("[Importing executable, missing dependencies]\n");
+                            for (importer, missing_dependencies) in report.not_found_libraries.iter() {
+                                if !missing_dependencies.is_empty() {
+                                    println!("{importer}");
+                                    for missing_import_dll in missing_dependencies {
+                                        println!("\t{missing_import_dll}");
                                     }
                                 }
                             }
+                            println!();
+                        } else {
+                            println!("No missing libraries detected");
                         }
-                    } else {
-                        println!("No missing symbols detected");
+
+                        if let Some(missing_symbols) = report.not_found_symbols {
+                            println!("\nMissing symbols detected!");
+                            println!("[Importing executable, exporting executable, missing symbols]\n");
+                            for (filename, missing_imports) in missing_symbols.iter() {
+                                if !missing_imports.is_empty() {
+                                    println!("{filename}");
+                                    for (missing_import_dll, missing_symbols) in missing_imports {
+                                        println!("\t{missing_import_dll}");
+                                        for missing_symbol in missing_symbols {
+                                            println!(
+                                                "\t\t{}",
+                                                demangle_symbol(missing_symbol)
+                                                    .as_ref()
+                                                    .unwrap_or(missing_symbol)
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            println!("No missing symbols detected");
+                        }
                     }
+                    Err(sym_check_error) => println!("{sym_check_error:?}"),
                 }
-                Err(sym_check_error) => println!("{sym_check_error:?}"),
             }
         }
-    }
 
-    // skimming
-    #[cfg(not(windows))]
-    if args.skim {
-        while let Some(selected_dlls) = skim_dlls(&executables) {
-            skim_symbols(&executables, Some(selected_dlls));
+        // skimming
+        #[cfg(not(windows))]
+        if args.skim {
+            while let Some(selected_dlls) = skim_dlls(&executables) {
+                skim_symbols(&executables, Some(selected_dlls));
+            }
+        } else if args.skim_symbols {
+            skim_symbols(&executables, None);
         }
-    } else if args.skim_symbols {
-        skim_symbols(&executables, None);
-    }
 
-    // JSON representation
+        // JSON representation
 
-    if let Some(json_output_path) = args.output_json_path {
-        let js = serde_json::to_string(&sorted_executables).context("Error serializing")?;
+        if let Some(json_output_path) = &args.output_json_path {
+            // Generate filename with index for multiple files
+            let json_path = if binary_paths.len() > 1 {
+                let stem = std::path::Path::new(json_output_path)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("output");
+                let ext = std::path::Path::new(json_output_path)
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("json");
+                let parent = std::path::Path::new(json_output_path).parent();
+                let filename = format!("{}_{}.{}", stem, idx, ext);
+                if let Some(p) = parent {
+                    p.join(filename)
+                } else {
+                    PathBuf::from(filename)
+                }
+            } else {
+                PathBuf::from(json_output_path)
+            };
 
-        use std::io::prelude::*;
-        let path = std::path::Path::new(&json_output_path);
-        let display = path.display();
+            let js = serde_json::to_string(&sorted_executables).context("Error serializing")?;
 
-        // Open a file in write-only mode, returns `io::Result<File>`
-        let mut file = fs::File::create(path).context(format!("couldn't create {display}"))?;
+            use std::io::prelude::*;
+            let display = json_path.display();
 
-        // Write to `file`, returns `io::Result<()>`
-        file.write_all(js.as_bytes())
-            .context(format!("couldn't write to {display}"))?;
+            // Open a file in write-only mode, returns `io::Result<File>`
+            let mut file = fs::File::create(&json_path).context(format!("couldn't create {display}"))?;
 
-        if args.verbose {
-            println!("successfully wrote to {display}");
+            // Write to `file`, returns `io::Result<()>`
+            file.write_all(js.as_bytes())
+                .context(format!("couldn't write to {display}"))?;
+
+            if args.verbose {
+                println!("successfully wrote to {display}");
+            }
         }
     }
 
