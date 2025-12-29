@@ -43,7 +43,7 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 continue;
             }
             if let Some(r) = lookup_path
-                .search_dll(&lookup_query.dllname)
+                .search_dll(&lookup_query.dllname, &query.system)
                 .ok()
                 .flatten()
             {
@@ -54,8 +54,8 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                     .read_dll_name()
                     .unwrap_or_else(|_| lookup_query.dllname.clone());
                 let is_system = r.location.is_system();
-                let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet(_));
-                let is_known_dll = std::matches!(r.location, LookupPathEntry::KnownDLLs(_));
+                let is_api_set = std::matches!(r.location, LookupPathEntry::ApiSet);
+                let is_known_dll = std::matches!(r.location, LookupPathEntry::KnownDLLs);
                 let dependencies = if is_api_set {
                     query
                         .system
@@ -63,7 +63,7 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                         .and_then(|s| s.apiset_map.as_ref())
                         .and_then(|am| am.get(dllname.trim_end_matches(".dll")).cloned())
                 } else if r.location.is_system()
-                    && !std::matches!(r.location, LookupPathEntry::ApiSet(_))
+                    && !std::matches!(r.location, LookupPathEntry::ApiSet)
                 {
                     // system DLLs have just too many dependencies
                     None

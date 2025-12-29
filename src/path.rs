@@ -1,10 +1,9 @@
 //! This is the workhorse of the library: the LookupPath contains the list of possible locations for 
 //! a dependency, performs the actual lookup and caching of the results and of all filesystem access.
 
-use crate::apiset;
 use crate::common::LookupError;
 use crate::query::LookupQuery;
-use crate::system::{KnownDLLList, WinFileSystemCache, WindowsSystem};
+use crate::system::{WinFileSystemCache, WindowsSystem};
 #[cfg(windows)]
 use fs_err as fs;
 use std::ffi::OsStr;
@@ -12,13 +11,13 @@ use std::path::{Path, PathBuf};
 
 /// Directory/set of DLLs to be searched, and relative metadata
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub enum LookupPathEntry<'a> {
+pub enum LookupPathEntry {
     /// The DLL is implicitly loaded by the OS for every process and not looked up every time
-    KnownDLLs(&'a KnownDLLList),
+    KnownDLLs,
     /// Directory where the root executable sits
     ExecutableDir(PathBuf),
     /// Directory containing the "proxy" DLLs that implement the API set feature
-    ApiSet(&'a apiset::ApisetMap),
+    ApiSet,
     /// Windows System directory (typically C:\Windows\System32)
     SystemDir(PathBuf),
     // SystemDir16, // ignored
@@ -32,19 +31,19 @@ pub enum LookupPathEntry<'a> {
     UserPath(PathBuf),
 }
 
-impl<'a> LookupPathEntry<'a> {
+impl LookupPathEntry {
     pub fn is_system(&self) -> bool {
         matches!(
             self,
-            Self::KnownDLLs(_) | Self::ApiSet(_) | Self::WindowsDir(_) | Self::SystemDir(_)
+            Self::KnownDLLs | Self::ApiSet | Self::WindowsDir(_) | Self::SystemDir(_)
         )
     }
 
     pub fn get_path(&self) -> Option<PathBuf> {
         match self {
             // we have a fixed list, no need to scan
-            Self::KnownDLLs(_) => None,
-            Self::ApiSet(_) => None,
+            Self::KnownDLLs => None,
+            Self::ApiSet => None,
             // else
             Self::ExecutableDir(p)
             | Self::SystemDir(p)
@@ -57,8 +56,8 @@ impl<'a> LookupPathEntry<'a> {
 }
 
 /// Full location of a DLL found during lookup
-pub struct LookupResult<'a> {
-    pub location: LookupPathEntry<'a>,
+pub struct LookupResult {
+    pub location: LookupPathEntry,
     pub fullpath: PathBuf,
 }
 
@@ -70,31 +69,21 @@ pub struct LookupResult<'a> {
 /// The path is computed from the user-provided query before scanning the dependency tree. It acts
 /// as a reification of the computed path itself, as an interface to look up executables across it
 /// and a cache for the metadata of the DLLs found through it.
-pub struct LookupPath<'a> {
+pub struct LookupPath {
     /// Sorted list of directories to be looked up when searching for a DLL
     /// It is built from a query, depending on the current system configuration
     /// (availability of a Windows root, and its configuration that influences the lookup)
-    pub entries: Vec<LookupPathEntry<'a>>,
+    pub entries: Vec<LookupPathEntry>,
     /// Cache of file lookup on disk
     /// (filesystem access is the true bottleneck in DLL dependency resolution)
     fs_cache: std::cell::RefCell<WinFileSystemCache>,
 }
 
-impl<'a> LookupPath<'a> {
+impl LookupPath {
     /// Deduces the lookup path from the given user query applying sensible defaults
     /// The user can still manipulate the entries afterward in a manual fashion
-    pub fn deduce(query: &'a LookupQuery) -> Self {
+    pub fn deduce(query: &LookupQuery) -> Self {
         let entries = if let Some(system) = query.system.as_ref() {
-            let knowndlls_entry = if let Some(known_dlls) = system.known_dlls.as_ref() {
-                vec![LookupPathEntry::KnownDLLs(known_dlls)]
-            } else {
-                vec![]
-            };
-            let apiset_entry = if let Some(apiset_map) = system.apiset_map.as_ref() {
-                vec![LookupPathEntry::ApiSet(apiset_map)]
-            } else {
-                vec![]
-            };
             let system_entries = vec![
                 LookupPathEntry::SystemDir(system.sys_dir.clone()),
                 // 16-bit system directory ignored
@@ -104,8 +93,8 @@ impl<'a> LookupPath<'a> {
             if system.safe_dll_search_mode_on.unwrap_or(true) {
                 // default mode (assume if not specified)
                 [
-                    knowndlls_entry,
-                    apiset_entry,
+                    vec![LookupPathEntry::KnownDLLs],
+                    vec![LookupPathEntry::ApiSet],
                     vec![LookupPathEntry::ExecutableDir(query.target.app_dir.clone())],
                     system_entries,
                     vec![LookupPathEntry::WorkingDir(
@@ -118,8 +107,8 @@ impl<'a> LookupPath<'a> {
             } else {
                 // if HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\SafeDllSearchMode is 0
                 [
-                    knowndlls_entry,
-                    apiset_entry,
+                    vec![LookupPathEntry::KnownDLLs],
+                    vec![LookupPathEntry::ApiSet],
                     vec![
                         LookupPathEntry::ExecutableDir(query.target.app_dir.clone()),
                         LookupPathEntry::WorkingDir(query.target.working_dir.clone()),
@@ -152,8 +141,8 @@ impl<'a> LookupPath<'a> {
     #[cfg(windows)]
     fn dwp_string_to_context_entry(
         s: &str,
-        q: &'a LookupQuery,
-    ) -> Result<Vec<LookupPathEntry<'a>>, LookupError> {
+        q: &LookupQuery,
+    ) -> Result<Vec<LookupPathEntry>, LookupError> {
         if s.is_empty() {
             return Ok(vec![]);
         }
@@ -163,13 +152,7 @@ impl<'a> LookupPath<'a> {
         }
         match s {
             "SxS" => Ok(vec![]), // TODO?
-            "KnownDLLs" => {
-                if let Some(kd) = q.system.as_ref().and_then(|s| s.known_dlls.as_ref()) {
-                    Ok(vec![LookupPathEntry::KnownDLLs(kd)])
-                } else {
-                    Ok(vec![])
-                }
-            }
+            "KnownDLLs" => Ok(vec![LookupPathEntry::KnownDLLs]),
             "AppDir" => Ok(vec![LookupPathEntry::ExecutableDir(
                 q.target.app_dir.clone(),
             )]),
@@ -208,7 +191,7 @@ impl<'a> LookupPath<'a> {
     #[cfg(windows)]
     pub fn from_dwp_file<P: AsRef<Path>>(
         dwp_path: P,
-        query: &'a LookupQuery,
+        query: &LookupQuery,
     ) -> Result<Self, LookupError> {
         // https://www.dependencywalker.com/help/html/path_files.htm
         let comment_chars = [':', ';', '/', '\'', '#'];
@@ -233,21 +216,21 @@ impl<'a> LookupPath<'a> {
     }
 
     /// look for a DLL by name across the entries
-    pub fn search_dll(&self, library: &str) -> Result<Option<LookupResult<'_>>, LookupError> {
+    pub fn search_dll(&self, library: &str, system: &Option<WindowsSystem>) -> Result<Option<LookupResult>, LookupError> {
         for e in &self.entries {
             match e {
-                LookupPathEntry::KnownDLLs(kd) => {
-                    if let Ok(Some(lp)) = kd.search_dll_in_known_dlls(library) {
+                LookupPathEntry::KnownDLLs => {
+                    if let Some(Some(Ok(Some(lp)))) = system.as_ref().map(|s| s.known_dlls.as_ref().map(|kd| kd.search_dll_in_known_dlls(library))) {
                         let ret = Some(LookupResult {
-                            location: LookupPathEntry::KnownDLLs(kd),
+                            location: LookupPathEntry::KnownDLLs,
                             fullpath: lp,
                         });
                         return Ok(ret);
                     }
                 }
-                LookupPathEntry::ApiSet(apis) => {
+                LookupPathEntry::ApiSet => {
                     let apiset_name = library.to_lowercase().trim_end_matches(".dll").to_owned();
-                    if apis.contains_key(&apiset_name) {
+                    if system.as_ref().map(|s| s.apiset_map.as_ref().map(|apis| apis.contains_key(&apiset_name))).flatten().unwrap_or(false){
                         if let Some(system32_dir) = self
                             .entries
                             .iter()
@@ -296,7 +279,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// Get the PATH entries specified by the system
-    fn system_path_entries(system: &'_ WindowsSystem) -> Vec<LookupPathEntry<'_>> {
+    fn system_path_entries(system: &'_ WindowsSystem) -> Vec<LookupPathEntry> {
         system
             .system_path
             .as_ref()
@@ -307,7 +290,7 @@ impl<'a> LookupPath<'a> {
     }
 
     /// Get the PATH entries that were provided by the user when running the program
-    fn user_path_entries(q: &'_ LookupQuery) -> Vec<LookupPathEntry<'_>> {
+    fn user_path_entries(q: &'_ LookupQuery) -> Vec<LookupPathEntry> {
         q.target
             .user_path
             .iter()
@@ -338,13 +321,13 @@ mod tests {
         let path = LookupPath::from_dwp_file(&dwp_file_path, &query)?;
 
         if query.system.is_some() {
-            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs(_)));
+            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs));
             assert!(std::matches!(path.entries[1], LookupPathEntry::ExecutableDir(_)));
             assert!(std::matches!(path.entries[2], LookupPathEntry::SystemDir(_)));
             assert!(std::matches!(path.entries[3], LookupPathEntry::WindowsDir(_)));
             assert!(std::matches!(path.entries[4], LookupPathEntry::UserPath(_)));
         } else {
-            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs(_)));
+            assert!(std::matches!(path.entries.first().unwrap(), LookupPathEntry::KnownDLLs));
             assert!(std::matches!(path.entries[1], LookupPathEntry::ExecutableDir(_)));
             assert!(std::matches!(path.entries[2], LookupPathEntry::SystemDir(_)));
         }
