@@ -210,6 +210,8 @@ Help is welcome in the form of issues and pull request!
 - v 1.3.0
     - [x] add support for multiple targets and filtering DLL names
 - v 1.4.0
+    - [x] Rust 2024 support
+- v 1.5.0
     - [ ] support of manifests
     - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers

@@ -1,8 +1,13 @@
+# 1.4.0
+
+- Switch to Rust 2024
+- Simplify the API by removing the lifetime parameter in LookupPathEntry
+
 # 1.3.3
 
 - Support multiple target binaries in deprun
 - Added a filter option to deprun
-- 
+
 # 1.3.2
 
 - Updated dependencies
