@@ -18,10 +18,11 @@ use winapi::shared::ntdef::{
 use winapi::shared::ntstatus;
 
 unsafe fn u16_ptr_to_string(ptr: *const u16) -> OsString {
-    let len = (0..).take_while(|&i| *ptr.offset(i) != 0).count();
-    let slice = std::slice::from_raw_parts(ptr, len);
-
-    OsString::from_wide(slice)
+    unsafe {
+        let len = (0..).take_while(|&i| *ptr.offset(i) != 0).count();
+        let slice = std::slice::from_raw_parts(ptr, len);
+        OsString::from_wide(slice)
+    }
 }
 
 // according to https://lucasg.github.io/2017/06/07/listing-known-dlls/,
