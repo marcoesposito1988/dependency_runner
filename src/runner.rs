@@ -113,12 +113,14 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                     }),
                 });
             } else {
-                executables_found.insert(Executable {
-                    dllname: lookup_query.dllname,
-                    depth_first_appearance: lookup_query.depth,
-                    found: false,
-                    details: None,
-                });
+                if !executables_found.contains(&lookup_query.dllname) {
+                    executables_found.insert(Executable {
+                        dllname: lookup_query.dllname,
+                        depth_first_appearance: lookup_query.depth,
+                        found: false,
+                        details: None,
+                    });
+                }
             }
         }
     }
