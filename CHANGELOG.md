@@ -1,3 +1,7 @@
+# 1.4.1 
+
+- Fixed the "Found two DLLs with the same name" erroneous log message
+
 # 1.4.0
 
 - Switch to Rust 2024
