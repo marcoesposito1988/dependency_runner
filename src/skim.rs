@@ -1,21 +1,18 @@
 extern crate crossbeam;
 extern crate skim;
 
+use std::collections::HashMap;
+
 use skim::prelude::*;
 
 use crate::common::readable_canonical_path;
 use crate::executable::Executables;
 use crate::pe::demangle_symbol;
 
-enum SymbolLocation {
-    Exported,
-    Imported(String),
-}
-
 struct SymbolItem {
     symbol: String,
-    dllname: String,
-    location: SymbolLocation,
+    exported_by: Vec<String>,
+    imported_by: Vec<(String, String)>,
 }
 
 impl SkimItem for SymbolItem {
@@ -29,15 +26,26 @@ impl SkimItem for SymbolItem {
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
         let demangled = demangle_symbol(&self.symbol).unwrap_or(self.symbol.clone());
-        let export_msg = if let SymbolLocation::Imported(dll) = &self.location {
-            format!("imported from {}", dll)
-        } else {
-            "exported".to_string()
-        };
-        ItemPreview::Text(format!(
-            "dll:\n\t{}\n\nlocation:\n\t{}\n\nsymbol:\n\t{}\n\nraw symbol:\n\t{}",
-            self.dllname, export_msg, &demangled, self.symbol
-        ))
+        let mut preview = format!(
+            "symbol:\n\t{}\n\nraw symbol:\n\t{}\n",
+            &demangled, self.symbol
+        );
+
+        if !self.exported_by.is_empty() {
+            preview.push_str("\nexported by:\n");
+            for dll in &self.exported_by {
+                preview.push_str(&format!("\t{}\n", dll));
+            }
+        }
+
+        if !self.imported_by.is_empty() {
+            preview.push_str("\nimported by:\n");
+            for (importer, source) in &self.imported_by {
+                preview.push_str(&format!("\t{} (from {})\n", importer, source));
+            }
+        }
+
+        ItemPreview::Text(preview)
     }
 }
 
@@ -104,6 +112,8 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
     crossbeam::scope(|s| {
         // Producer thread
         s.spawn(|_| {
+            let mut grouped: HashMap<String, SymbolItem> = HashMap::new();
+
             for e in exes.sorted_by_first_appearance() {
                 if selected_dlls
                     .as_ref()
@@ -112,30 +122,42 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
                 {
                     if let Some(d) = e.details.as_ref() {
                         if let Some(syms_details) = d.symbols.as_ref() {
-                            let mut exported_items = Vec::new();
                             for sym in &syms_details.exported {
-                                exported_items.push(Arc::new(SymbolItem {
-                                    symbol: sym.to_string(),
-                                    dllname: e.dllname.clone(),
-                                    location: SymbolLocation::Exported,
-                                }) as Arc<dyn SkimItem>);
+                                let item =
+                                    grouped.entry(sym.to_string()).or_insert_with(|| SymbolItem {
+                                        symbol: sym.to_string(),
+                                        exported_by: Vec::new(),
+                                        imported_by: Vec::new(),
+                                    });
+                                item.exported_by.push(e.dllname.clone());
                             }
-                            let _ = tx_item.send(exported_items);
 
                             for (dll, sym_list) in &syms_details.imported {
-                                let mut imported_items = Vec::new();
                                 for sym in sym_list {
-                                    imported_items.push(Arc::new(SymbolItem {
-                                        symbol: sym.to_string(),
-                                        dllname: e.dllname.clone(),
-                                        location: SymbolLocation::Imported(dll.clone()),
-                                    }) as Arc<dyn SkimItem>);
+                                    let item = grouped.entry(sym.to_string()).or_insert_with(|| {
+                                        SymbolItem {
+                                            symbol: sym.to_string(),
+                                            exported_by: Vec::new(),
+                                            imported_by: Vec::new(),
+                                        }
+                                    });
+                                    item.imported_by.push((e.dllname.clone(), dll.clone()));
                                 }
-                                let _ = tx_item.send(imported_items);
                             }
                         }
                     }
                 }
+            }
+
+            let mut items: Vec<_> = grouped.into_values().collect();
+            items.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+
+            for mut item in items {
+                item.exported_by.sort();
+                item.exported_by.dedup();
+                item.imported_by.sort();
+                item.imported_by.dedup();
+                let _ = tx_item.send(vec![Arc::new(item)]);
             }
 
             drop(tx_item); // so that skim could know when to stop waiting for more items.
