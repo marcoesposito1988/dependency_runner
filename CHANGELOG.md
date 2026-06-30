@@ -1,3 +1,7 @@
+# 1.5.0
+
+- Added support for relative paths in vcxproj files 
+
 # 1.4.1 
 
 - Fixed the "Found two DLLs with the same name" erroneous log message
