@@ -35,8 +35,39 @@ fn extract_config_from_node(n: &roxmltree::Node) -> Result<String, LookupError> 
     Ok(config)
 }
 
+fn expand_variables(text: &str, project_file: &std::path::Path) -> String {
+    let project_dir = project_file
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let mut project_dir_str = project_dir.to_str().unwrap_or("").to_string();
+    if !project_dir_str.is_empty()
+        && !project_dir_str.ends_with('\\')
+        && !project_dir_str.ends_with('/')
+    {
+        project_dir_str.push(std::path::MAIN_SEPARATOR);
+    }
+
+    text.replace("$(ProjectDir)", &project_dir_str)
+        .replace("$(SolutionDir)", &project_dir_str)
+        .replace('\\', "/")
+}
+
+fn resolve_path(path: &str, project_file: &std::path::Path) -> PathBuf {
+    let expanded = expand_variables(path, project_file);
+    let p = std::path::Path::new(&expanded);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        project_file
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .join(p)
+    }
+}
+
 fn extract_debugging_configuration_from_config_node(
     n: &roxmltree::Node,
+    p: &std::path::Path,
 ) -> Result<VcxDebuggingConfiguration, LookupError> {
     let config = extract_config_from_node(n)?;
 
@@ -62,11 +93,11 @@ fn extract_debugging_configuration_from_config_node(
             LookupError::ParseError("Failed to find LocalDebuggerEnvironment tag".to_owned())
         })?;
         let path_entries = path_env_var_without_varname.split(';');
-        let path_entries_no_vars: Vec<PathBuf> = path_entries
-            .filter(|s| !s.contains('$') && !s.contains('%') && !s.is_empty())
-            .map(PathBuf::from)
+        let path_entries_expanded: Vec<PathBuf> = path_entries
+            .filter(|s| !s.is_empty() && !s.contains("%PATH%"))
+            .map(|s| resolve_path(s, p))
             .collect();
-        ret.path = Some(path_entries_no_vars);
+        ret.path = Some(path_entries_expanded);
     }
 
     if let Some(working_directory_node) = n
@@ -76,10 +107,7 @@ fn extract_debugging_configuration_from_config_node(
         let working_directory_text = working_directory_node.text().ok_or_else(|| {
             LookupError::ParseError("Failed to find LocalDebuggerEnvironment tag".to_owned())
         })?;
-        // TODO fetch properties from vcxproj? may get out of hand
-        if !working_directory_text.starts_with('$') {
-            ret.working_directory = Some(PathBuf::from(working_directory_text));
-        }
+        ret.working_directory = Some(resolve_path(working_directory_text, p));
     }
 
     Ok(ret)
@@ -108,7 +136,7 @@ pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
     let debugging_config_per_config: HashMap<String, VcxDebuggingConfiguration> =
         configuration_nodes
             .iter()
-            .map(extract_debugging_configuration_from_config_node)
+            .map(|n| extract_debugging_configuration_from_config_node(n, p.as_ref()))
             .filter_map(Result::ok)
             .map(|e: VcxDebuggingConfiguration| (e.configuration.clone(), e))
             .collect();
@@ -127,12 +155,12 @@ pub struct VcxExecutableInformation {
     pub debugging_configuration: Option<VcxDebuggingConfiguration>,
 }
 
-fn extract_tag(root: &roxmltree::Node, tag: &str) -> HashMap<String, String> {
+fn extract_tag(root: &roxmltree::Node, tag: &str, p: &std::path::Path) -> HashMap<String, String> {
     root.descendants()
         .filter(|n: &roxmltree::Node| n.has_tag_name(tag))
         .map(|n| {
             if let Some(od) = n.text() {
-                extract_config_from_node(&n).map(|c| (c, od.to_owned()))
+                extract_config_from_node(&n).map(|c| (c, expand_variables(od, p)))
             } else {
                 Err(LookupError::ParseError(format!("Empty {tag} tag")))
             }
@@ -162,9 +190,9 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>(
         )))?;
 
     // extract the file path the config refers to (outdir + target name + extension)
-    let outdir_per_config = extract_tag(&project_node, "OutDir");
-    let targetname_per_config = extract_tag(&project_node, "TargetName");
-    let targetext_per_config = extract_tag(&project_node, "TargetExt");
+    let outdir_per_config = extract_tag(&project_node, "OutDir", p.as_ref());
+    let targetname_per_config = extract_tag(&project_node, "TargetName", p.as_ref());
+    let targetext_per_config = extract_tag(&project_node, "TargetExt", p.as_ref());
 
     let configs: Vec<_> = outdir_per_config.keys().collect();
 
@@ -176,23 +204,20 @@ pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>(
                 &targetname_per_config[c],
                 &targetext_per_config[c],
             );
-            // the following assumes that parent_dir ends with a backslash
-            if let Some(parent_dir) = std::path::Path::new(e_dir).to_str() {
-                Ok((
-                    c.clone(),
-                    VcxExecutableInformation {
-                        configuration: c.clone(),
-                        executable_path: PathBuf::from(parent_dir.to_owned() + e_name + e_ext),
-                        debugging_configuration: None,
-                    },
-                ))
-            } else {
-                Err(LookupError::ParseError(
-                    "Could not find executable path".to_owned(),
-                ))
-            }
+            
+            let parent_dir = resolve_path(e_dir, p.as_ref());
+
+            (
+                c.clone(),
+                VcxExecutableInformation {
+                    configuration: c.clone(),
+                    executable_path: parent_dir.join(e_name.to_owned() + e_ext),
+                    debugging_configuration: None,
+                },
+            )
         })
-        .filter_map(Result::ok)
+        .map(Some)
+        .filter_map(|x| x)
         .collect();
 
     if let Some(parent_dir) = p.as_ref().parent() {
@@ -239,8 +264,11 @@ mod tests {
 
         let debug_exe_info = &p["Debug"];
 
-        assert!(&debug_exe_info.executable_path.to_str().unwrap()
-            .ends_with(r"\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTest\Debug\DepRunTest.exe"));
+        let actual_executable_path =
+            crate::common::readable_canonical_path(&debug_exe_info.executable_path)?;
+        assert!(actual_executable_path.replace('\\', "/").ends_with(
+            "test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTest/Debug/DepRunTest.exe"
+        ));
 
         assert!(debug_exe_info.debugging_configuration.is_some());
         let deb_config = debug_exe_info.debugging_configuration.as_ref().unwrap();
@@ -248,21 +276,19 @@ mod tests {
         assert_eq!(deb_config.configuration, "Debug");
 
         assert!(deb_config.working_directory.is_some());
-        assert!(deb_config
-            .working_directory
-            .as_ref()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .ends_with(
-                r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
-            ));
+        let actual_working_directory = crate::common::readable_canonical_path(
+            deb_config.working_directory.as_ref().unwrap(),
+        )?;
+        assert!(actual_working_directory.replace('\\', "/").ends_with(
+            "test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Debug"
+        ));
 
         assert!(deb_config.path.is_some());
         let p = deb_config.path.as_ref().unwrap();
         assert_eq!(p.len(), 1);
-        assert!(p.first().unwrap().to_str().unwrap().ends_with(
-            r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
+        let actual_path = crate::common::readable_canonical_path(p.first().unwrap())?;
+        assert!(actual_path.replace('\\', "/").ends_with(
+            "test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Debug"
         ));
 
         Ok(())
@@ -285,8 +311,10 @@ mod tests {
 
         let debug_exe_info = &p["Debug"];
 
-        assert!(&debug_exe_info.executable_path.to_str().unwrap().ends_with(
-            r"\test_data\test_project1\DepRunTest\build\DepRunTest\Debug\DepRunTest.exe"
+        let actual_executable_path =
+            crate::common::readable_canonical_path(&debug_exe_info.executable_path)?;
+        assert!(actual_executable_path.replace('\\', "/").ends_with(
+            "test_data/test_project1/DepRunTest/build/DepRunTest/Debug/DepRunTest.exe"
         ));
 
         assert!(debug_exe_info.debugging_configuration.is_none());
@@ -309,21 +337,19 @@ mod tests {
 
         assert_eq!(deb_config.configuration, "Debug");
 
-        assert!(deb_config
-            .working_directory
-            .as_ref()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .ends_with(
-                r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
-            ));
+        let actual_working_directory = crate::common::readable_canonical_path(
+            deb_config.working_directory.as_ref().unwrap(),
+        )?;
+        assert!(actual_working_directory.replace('\\', "/").ends_with(
+            "test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Debug"
+        ));
 
         assert!(deb_config.path.is_some());
         let p = deb_config.path.as_ref().unwrap();
         assert_eq!(p.len(), 1);
-        assert!(p.first().unwrap().to_str().unwrap().ends_with(
-            r"test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug"
+        let actual_path = crate::common::readable_canonical_path(p.first().unwrap())?;
+        assert!(actual_path.replace('\\', "/").ends_with(
+            "test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Debug"
         ));
 
         Ok(())
