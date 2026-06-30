@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <PreferredToolArchitecture>x64</PreferredToolArchitecture>
@@ -59,25 +59,25 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Debug\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)Debug\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">DepRunTestLib.dir\Debug\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">DepRunTestLib</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.dll</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\Release\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)Release\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">DepRunTestLib.dir\Release\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">DepRunTestLib</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.dll</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\MinSizeRel\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">$(ProjectDir)MinSizeRel\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">DepRunTestLib.dir\MinSizeRel\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">DepRunTestLib</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.dll</TargetExt>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\RelWithDebInfo\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">$(ProjectDir)RelWithDebInfo\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">DepRunTestLib.dir\RelWithDebInfo\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">DepRunTestLib</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.dll</TargetExt>
@@ -86,7 +86,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -103,10 +103,10 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\";DepRunTestLib_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -119,8 +119,8 @@
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
-      <ImportLibrary>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Debug/DepRunTestLib.lib</ImportLibrary>
-      <ProgramDataBaseFile>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Debug/DepRunTestLib.pdb</ProgramDataBaseFile>
+      <ImportLibrary>$(ProjectDir)Debug\DepRunTestLib.lib</ImportLibrary>
+      <ProgramDataBaseFile>$(ProjectDir)Debug\DepRunTestLib.pdb</ProgramDataBaseFile>
       <SubSystem>Console</SubSystem>
     </Link>
     <ProjectReference>
@@ -129,7 +129,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -146,10 +146,10 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\";DepRunTestLib_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -162,8 +162,8 @@
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
-      <ImportLibrary>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Release/DepRunTestLib.lib</ImportLibrary>
-      <ProgramDataBaseFile>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/Release/DepRunTestLib.pdb</ProgramDataBaseFile>
+      <ImportLibrary>$(ProjectDir)Release\DepRunTestLib.lib</ImportLibrary>
+      <ProgramDataBaseFile>$(ProjectDir)Release\DepRunTestLib.pdb</ProgramDataBaseFile>
       <SubSystem>Console</SubSystem>
     </Link>
     <ProjectReference>
@@ -172,7 +172,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
@@ -189,10 +189,10 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\";DepRunTestLib_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -205,8 +205,8 @@
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
-      <ImportLibrary>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/MinSizeRel/DepRunTestLib.lib</ImportLibrary>
-      <ProgramDataBaseFile>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/MinSizeRel/DepRunTestLib.pdb</ProgramDataBaseFile>
+      <ImportLibrary>$(ProjectDir)MinSizeRel\DepRunTestLib.lib</ImportLibrary>
+      <ProgramDataBaseFile>$(ProjectDir)MinSizeRel\DepRunTestLib.pdb</ProgramDataBaseFile>
       <SubSystem>Console</SubSystem>
     </Link>
     <ProjectReference>
@@ -215,7 +215,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>Sync</ExceptionHandling>
@@ -231,10 +231,10 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\";DepRunTestLib_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\.;C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\DepRunTestLib\;$(ProjectDir)..\DepRunTestLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -247,8 +247,8 @@
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
-      <ImportLibrary>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/RelWithDebInfo/DepRunTestLib.lib</ImportLibrary>
-      <ProgramDataBaseFile>C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/RelWithDebInfo/DepRunTestLib.pdb</ProgramDataBaseFile>
+      <ImportLibrary>$(ProjectDir)RelWithDebInfo\DepRunTestLib.lib</ImportLibrary>
+      <ProgramDataBaseFile>$(ProjectDir)RelWithDebInfo\DepRunTestLib.pdb</ProgramDataBaseFile>
       <SubSystem>Console</SubSystem>
     </Link>
     <ProjectReference>
@@ -256,11 +256,11 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\CMakeLists.txt">
+    <CustomBuild Include="$(ProjectDir)..\..\DepRunTestLib\CMakeLists.txt">
       <StdOutEncoding>UTF-8</StdOutEncoding>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/DepRunTestLib/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule $(ProjectDir)..\..\DepRunTestLib\CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest -BC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user --check-stamp-file C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -S$(ProjectDir)..\..\..\DepRunTest -B$(ProjectDir)..\..\build-vcxproj-user --check-stamp-file $(ProjectDir)CMakeFiles\generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -269,11 +269,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-3.19\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/DepRunTestLib/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule $(ProjectDir)..\..\DepRunTestLib\CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest -BC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user --check-stamp-file C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -S$(ProjectDir)..\..\..\DepRunTest -B$(ProjectDir)..\..\build-vcxproj-user --check-stamp-file $(ProjectDir)CMakeFiles\generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -282,11 +282,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-3.19\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/DepRunTestLib/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule $(ProjectDir)..\..\DepRunTestLib\CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest -BC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user --check-stamp-file C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -S$(ProjectDir)..\..\..\DepRunTest -B$(ProjectDir)..\..\build-vcxproj-user --check-stamp-file $(ProjectDir)CMakeFiles\generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -295,11 +295,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-3.19\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">$(ProjectDir)CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/DepRunTestLib/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule $(ProjectDir)..\..\DepRunTestLib\CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest -BC:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user --check-stamp-file C:/Users/Marco Esposito/Projects/personal/dependency_runner/test_data/test_project1/DepRunTest/build-vcxproj-user/DepRunTestLib/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -S$(ProjectDir)..\..\..\DepRunTest -B$(ProjectDir)..\..\build-vcxproj-user --check-stamp-file $(ProjectDir)CMakeFiles\generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -308,16 +308,16 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-3.19\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-3.19\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\DepRunTestLib\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">$(ProjectDir)CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\DepRunTestLib.cpp" />
-    <ClInclude Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\DepRunTestLib\DepRunTestLib.h" />
+    <ClCompile Include="$(ProjectDir)..\..\DepRunTestLib\DepRunTestLib.cpp" />
+    <ClInclude Include="$(ProjectDir)..\..\DepRunTestLib\DepRunTestLib.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="C:\Users\Marco Esposito\Projects\personal\dependency_runner\test_data\test_project1\DepRunTest\build-vcxproj-user\ZERO_CHECK.vcxproj">
+    <ProjectReference Include="$(ProjectDir)..\ZERO_CHECK.vcxproj">
       <Project>{A5F5FB98-F0AD-3DCB-88CC-CF548871A066}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
