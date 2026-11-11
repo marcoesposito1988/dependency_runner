@@ -1,6 +1,8 @@
 //! Routine to perform a recursive lookup according to the parameters in the user-provided query and
 //! the lookup path computed from it (and eventually adjusted by the user)
 
+use std::collections::VecDeque;
+
 use crate::common::{readable_canonical_path, LookupError};
 use crate::executable::{Executable, ExecutableDetails, ExecutableSymbols, Executables};
 use crate::path::{LookupPath, LookupPathEntry};
@@ -16,7 +18,7 @@ struct Job {
 /// Find the dependencies of the specified executable within the given path
 /// The dependencies are resolved recursively, in a breadth-first fashion.
 pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables, LookupError> {
-    let mut executables_to_lookup: Vec<Job> = Vec::new();
+    let mut executables_to_lookup: VecDeque<Job> = VecDeque::new();
     let mut executables_found = Executables::new();
 
     let filename = query
@@ -31,12 +33,12 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
         })?
         .to_owned();
 
-    executables_to_lookup.push(Job {
+    executables_to_lookup.push_back(Job {
         dllname: filename,
         depth: 0,
     });
 
-    while let Some(lookup_query) = executables_to_lookup.pop() {
+    while let Some(lookup_query) = executables_to_lookup.pop_front() {
         if lookup_query.depth <= query.parameters.max_depth.unwrap_or(usize::MAX) {
             // don't search again if we already found the executable
             if executables_found.contains(&lookup_query.dllname) {
@@ -92,10 +94,10 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 if let Some(deps) = &dependencies {
                     for d in deps {
                         if !executables_found.contains(d.as_ref()) {
-                            executables_to_lookup.push(Job {
+                            executables_to_lookup.push_back(Job {
                                 dllname: d.to_owned(),
                                 depth: lookup_query.depth + 1,
-                            })
+                            });
                         }
                     }
                 }
