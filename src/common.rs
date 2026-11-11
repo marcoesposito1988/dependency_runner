@@ -7,23 +7,26 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum LookupError {
-    #[error("File system access error while scanning: {}", .0)]
+    #[error("File system access error while scanning: {0}")]
     ScanError(String),
 
-    #[error("Visual Studio User settings file parse error: {}", .0)]
+    #[error("Visual Studio User settings file parse error: {0}")]
     ParseError(String),
 
-    #[error("Error trying to render a file path in readable form: {}", .0)]
+    #[error("Error trying to render a file path in readable form: {0}")]
     PathConversionError(String),
 
-    #[error("Lookup context building error: {}", .0)]
+    #[error("Lookup context building error: {0}")]
     ContextDeductionError(String),
 
-    #[error("Could not demangle symbol")]
+    #[error("Could not demangle symbol: {0}")]
     DemanglingError(String),
 
-    #[error("The target file is not a 64-bit DLL")]
+    #[error("The target file is not a valid 64-bit DLL: {0}")]
     WrongFileFormatError(pelite::Error),
+
+    #[error("Failed to parse PE binary: {0}")]
+    PEParseError(String),
 
     #[error(transparent)]
     VarError(#[from] std::env::VarError),
@@ -38,7 +41,7 @@ pub enum LookupError {
     #[error(transparent)]
     Utf8Error(#[from] std::str::Utf8Error),
     #[error(transparent)]
-    InternalError(#[from] anyhow::Error),
+    XmlError(#[from] roxmltree::Error),
 }
 
 /// Remove the extended path prefix (\\?\) for readability

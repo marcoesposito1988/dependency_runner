@@ -122,7 +122,7 @@ fn extract_debugging_configuration_from_config_node(
 // - working directory (value of the <LocalDebuggerWorkingDirectory> property)
 pub fn parse_vcxproj_user<P: AsRef<std::path::Path> + ?Sized>(
     p: &P,
-) -> anyhow::Result<HashMap<String, VcxDebuggingConfiguration>> {
+) -> Result<HashMap<String, VcxDebuggingConfiguration>, LookupError> {
     let filecontent = fs::read_to_string(p)?;
     let doc = roxmltree::Document::parse(&filecontent)?;
     let project_node = doc
@@ -178,7 +178,7 @@ fn extract_tag(root: &roxmltree::Node, tag: &str, p: &std::path::Path) -> HashMa
 // - debugging information, if the respective .vcxproj.user is found next to the .vcxproj
 pub fn parse_vcxproj<P: AsRef<std::path::Path> + ?Sized>(
     p: &P,
-) -> anyhow::Result<HashMap<String, VcxExecutableInformation>> {
+) -> Result<HashMap<String, VcxExecutableInformation>, LookupError> {
     let filecontent = fs::read_to_string(p)?;
     let doc = roxmltree::Document::parse(&filecontent)?;
     let project_node = doc
