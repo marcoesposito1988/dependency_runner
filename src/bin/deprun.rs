@@ -1,5 +1,3 @@
-extern crate dependency_runner;
-
 #[cfg(windows)]
 use dependency_runner::common::LookupError;
 use dependency_runner::path::LookupPath;
@@ -23,13 +21,13 @@ use std::path::PathBuf;
 
 #[cfg(windows)]
 fn pick_configuration(
-    configs: &Vec<&String>,
-    user_config: &Option<String>,
+    configs: &[&str],
+    user_config: Option<&str>,
     file_path: &str,
 ) -> Result<String, LookupError> {
     if let Some(vcx_config) = user_config {
-        if configs.contains(&&vcx_config.to_string()) {
-            Ok(vcx_config.to_owned().to_string())
+        if configs.contains(&vcx_config) {
+            Ok(vcx_config.to_owned())
         } else {
             Err(LookupError::ContextDeductionError(format!(
                 "The specified configuration {} was not found in project file {}\n\
@@ -43,7 +41,7 @@ fn pick_configuration(
             "Visual Studio configuration not specified, using {} for file {}",
             single_config, file_path
         );
-        Ok(single_config.to_owned().to_string())
+        Ok((*single_config).to_owned())
     } else {
         Err(LookupError::ContextDeductionError(format!(
             "Must specify a configuration with --vcx-config=<CONFIG> for project file {}\n\
@@ -59,7 +57,7 @@ fn visit_depth_first(
     max_depth: Option<usize>,
     exes: &Executables,
     print_system_dlls: bool,
-    filter: &Option<String>,
+    filter: Option<&str>,
 ) -> bool {
     if !((print_system_dlls || !e.details.as_ref().map(|d| d.is_system).unwrap_or(false))
         && max_depth.map(|d| current_depth < d).unwrap_or(true))
@@ -143,7 +141,7 @@ fn visit_depth_first_to_buffer(
     max_depth: Option<usize>,
     exes: &Executables,
     print_system_dlls: bool,
-    filter: &Option<String>,
+    filter: Option<&str>,
     buffer: &mut Vec<String>,
 ) -> bool {
     if !((print_system_dlls || !e.details.as_ref().map(|d| d.is_system).unwrap_or(false))
@@ -361,12 +359,13 @@ fn main() -> anyhow::Result<()> {
         {
             let vcxproj_path = &binary_path;
             let vcx_exe_info_per_config = parse_vcxproj(&vcxproj_path)?;
+            let config_keys: Vec<&str> = vcx_exe_info_per_config.keys().map(|s| s.as_str()).collect();
             let vcx_config_to_use = pick_configuration(
-                &vcx_exe_info_per_config.keys().collect::<Vec<_>>(),
-                &args.vcxproj_configuration,
+                &config_keys,
+                args.vcxproj_configuration.as_deref(),
                 vcxproj_path
                     .to_str()
-                    .ok_or(LookupError::ContextDeductionError(format!(
+                    .ok_or_else(|| LookupError::ContextDeductionError(format!(
                         "Could not open {:?} as a .vcxproj file",
                         vcxproj_path
                     )))?,
@@ -388,9 +387,10 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 let vcx_debug_info_per_config = parse_vcxproj_user(&vcxproj_user_path)?;
+                let debug_config_keys: Vec<&str> = vcx_debug_info_per_config.keys().map(|s| s.as_str()).collect();
                 let config_to_use = pick_configuration(
-                    &vcx_debug_info_per_config.keys().collect::<Vec<_>>(),
-                    &args.vcxproj_configuration,
+                    &debug_config_keys,
+                    args.vcxproj_configuration.as_deref(),
                     &vcxproj_user_path_str,
                 )?;
                 let vcx_debug_info = &vcx_debug_info_per_config[&config_to_use];
@@ -562,7 +562,7 @@ fn main() -> anyhow::Result<()> {
                     query.parameters.max_depth,
                     &executables,
                     args.print_system_dlls,
-                    &args.filter,
+                    args.filter.as_deref(),
                 );
             }
 

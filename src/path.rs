@@ -216,11 +216,11 @@ impl LookupPath {
     }
 
     /// look for a DLL by name across the entries
-    pub fn search_dll(&self, library: &str, system: &Option<WindowsSystem>) -> Result<Option<LookupResult>, LookupError> {
+    pub fn search_dll(&self, library: &str, system: Option<&WindowsSystem>) -> Result<Option<LookupResult>, LookupError> {
         for e in &self.entries {
             match e {
                 LookupPathEntry::KnownDLLs => {
-                    if let Some(Some(Ok(Some(lp)))) = system.as_ref().map(|s| s.known_dlls.as_ref().map(|kd| kd.search_dll_in_known_dlls(library))) {
+                    if let Some(Some(Ok(Some(lp)))) = system.map(|s| s.known_dlls.as_ref().map(|kd| kd.search_dll_in_known_dlls(library))) {
                         let ret = Some(LookupResult {
                             location: LookupPathEntry::KnownDLLs,
                             fullpath: lp,
@@ -230,7 +230,7 @@ impl LookupPath {
                 }
                 LookupPathEntry::ApiSet => {
                     let apiset_name = library.to_lowercase().trim_end_matches(".dll").to_owned();
-                    if system.as_ref().map(|s| s.apiset_map.as_ref().map(|apis| apis.contains_key(&apiset_name))).flatten().unwrap_or(false){
+                    if system.and_then(|s| s.apiset_map.as_ref().map(|apis| apis.contains_key(&apiset_name))).unwrap_or(false){
                         if let Some(system32_dir) = self
                             .entries
                             .iter()

@@ -45,7 +45,7 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                 continue;
             }
             if let Some(r) = lookup_path
-                .search_dll(&lookup_query.dllname, &query.system)
+                .search_dll(&lookup_query.dllname, query.system.as_ref())
                 .ok()
                 .flatten()
             {

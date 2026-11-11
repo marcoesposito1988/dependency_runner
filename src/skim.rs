@@ -1,7 +1,3 @@
-extern crate crossbeam;
-extern crate crossbeam_channel;
-extern crate skim;
-
 use skim::prelude::*;
 
 use crate::common::readable_canonical_path;

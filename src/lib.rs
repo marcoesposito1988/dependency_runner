@@ -38,8 +38,6 @@
 //! let sym_check = executables.check(true);
 //! ```
 
-extern crate thiserror;
-
 pub mod apiset;
 pub mod common;
 pub mod executable;

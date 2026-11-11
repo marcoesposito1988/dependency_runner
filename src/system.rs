@@ -1,10 +1,6 @@
 //! Description of a Windows system useful to compute the lookup path
 
 #[cfg(windows)]
-extern crate winapi;
-use crate::apiset;
-use crate::common::LookupError;
-#[cfg(windows)]
 use crate::knowndlls;
 use fs_err as fs;
 use std::collections::HashMap;
@@ -150,13 +146,13 @@ impl PartialEq for WindowsSystem {
     }
 }
 
+use crate::apiset;
+use crate::common::LookupError;
+
 /// Fetch the path to a system directory through the Windows API
 #[cfg(windows)]
 fn get_winapi_directory(
-    a: unsafe extern "system" fn(
-        winapi::um::winnt::LPWSTR,
-        winapi::shared::minwindef::UINT,
-    ) -> winapi::shared::minwindef::UINT,
+    a: unsafe extern "system" fn(*mut u16, u32) -> u32,
 ) -> Result<PathBuf, std::io::Error> {
     use std::io::Error;
 
@@ -175,13 +171,13 @@ fn get_winapi_directory(
 /// Get the path to the System directory (typically C:\Windows\System32)
 #[cfg(windows)]
 fn get_system_directory() -> Result<PathBuf, std::io::Error> {
-    get_winapi_directory(winapi::um::sysinfoapi::GetSystemDirectoryW)
+    get_winapi_directory(windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW)
 }
 
 /// Get the path to the Windows directory (typically C:\Windows)
 #[cfg(windows)]
 fn get_windows_directory() -> Result<PathBuf, std::io::Error> {
-    get_winapi_directory(winapi::um::sysinfoapi::GetWindowsDirectoryW)
+    get_winapi_directory(windows_sys::Win32::System::SystemInformation::GetWindowsDirectoryW)
 }
 
 /// Caches the content of already scanned directories to avoid repeated expensive filesystem access

@@ -1,5 +1,3 @@
-extern crate dependency_runner;
-
 use clap::Parser;
 use dependency_runner::common::{decanonicalize, path_to_string, readable_canonical_path};
 use dependency_runner::executable::Executable;
