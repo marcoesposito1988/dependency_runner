@@ -152,7 +152,7 @@ impl Executables {
     /// Add a new executable
     pub(crate) fn insert(&mut self, new_exe: Executable) {
         if let Some(older_finding) = self.get(&new_exe.dllname) {
-            eprintln!(
+            tracing::warn!(
                 "Found two DLLs with the same name! {:?} and {:?}",
                 new_exe
                     .details

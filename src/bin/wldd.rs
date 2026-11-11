@@ -32,6 +32,19 @@ struct WlddCli {
 fn main() -> anyhow::Result<()> {
     let args = WlddCli::parse();
 
+    let default_directive = if args.verbose {
+        tracing_subscriber::filter::LevelFilter::DEBUG.into()
+    } else {
+        tracing_subscriber::filter::LevelFilter::WARN.into()
+    };
+    let filter = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(default_directive)
+        .from_env_lossy();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
+
     let binary_path = std::path::PathBuf::from(args.input);
 
     if !binary_path.exists() {

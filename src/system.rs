@@ -64,7 +64,7 @@ impl WindowsSystem {
         let apiset = match apiset::parse_apiset(sys_dir.join("apisetschema.dll")) {
             Ok(apiset) => Some(apiset),
             Err(e) => {
-                eprintln!("{:?}", e);
+                tracing::warn!("Failed to parse apisetschema: {:?}", e);
                 None
             }
         };

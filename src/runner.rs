@@ -79,7 +79,7 @@ pub fn run(query: &LookupQuery, lookup_path: &LookupPath) -> Result<Executables,
                             imported,
                         })
                     } else {
-                        eprintln!(
+                        tracing::warn!(
                             "Error extracting symbols of library {}",
                             readable_canonical_path(&r.fullpath)?
                         );

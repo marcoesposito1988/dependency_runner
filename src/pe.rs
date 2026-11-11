@@ -34,10 +34,10 @@ impl<'a> PEFile<'a> {
                 Err(e) => {
                     match e {
                         pelite::Error::BadMagic | pelite::Error::PeMagic => {
-                            eprintln!("{:?}", LookupError::WrongFileFormatError(e))
+                            tracing::debug!("{:?}", LookupError::WrongFileFormatError(e))
                         }
 
-                        _ => eprintln!("{:?}", LookupError::PEError(e)),
+                        _ => tracing::debug!("{:?}", LookupError::PEError(e)),
                     };
                     None
                 }
@@ -45,11 +45,11 @@ impl<'a> PEFile<'a> {
             peobject: match goblin::Object::parse(&filemap.content) {
                 Ok(goblin::Object::PE(pef)) => Some(pef),
                 Ok(ukn) => {
-                    eprintln!("unexpected executable format: {ukn:?}");
+                    tracing::debug!("unexpected executable format: {ukn:?}");
                     None
                 }
                 Err(e) => {
-                    eprintln!("{:?}", LookupError::GoblinError(e));
+                    tracing::debug!("{:?}", LookupError::GoblinError(e));
                     None
                 }
             },
@@ -129,7 +129,7 @@ impl<'a> PEFile<'a> {
                         Ok("".to_owned()) // TODO apparently we can't check much here...
                     }
                     Err(err) => {
-                        eprintln!("Error parsing import: {err}");
+                        tracing::warn!("Error parsing import: {err}");
                         Err(err)
                     }
                 })

@@ -68,18 +68,18 @@ pub fn get_known_dlls() -> anyhow::Result<Vec<String>> {
         );
         if status != ntstatus::STATUS_SUCCESS {
             let raw_err = std::io::Error::from_raw_os_error(RtlNtStatusToDosError(status) as i32);
-            eprintln!("Failed to open KnownDll: {}", raw_err);
+            tracing::warn!("Failed to open KnownDll: {}", raw_err);
         }
     }
     if !NT_SUCCESS(status) {
         match status {
-            ntstatus::STATUS_INSUFFICIENT_RESOURCES => eprintln!("Insufficient resources"),
-            ntstatus::STATUS_INVALID_PARAMETER => eprintln!("INVALID_PARAMETER"),
-            ntstatus::STATUS_OBJECT_NAME_INVALID => eprintln!("OBJECT_NAME_INVALID"),
-            ntstatus::STATUS_OBJECT_NAME_NOT_FOUND => eprintln!("OBJECT_NAME_NOT_FOUND"),
-            ntstatus::STATUS_OBJECT_PATH_NOT_FOUND => eprintln!("OBJECT_PATH_NOT_FOUND"),
-            ntstatus::STATUS_OBJECT_PATH_SYNTAX_BAD => eprintln!("OBJECT_PATH_SYNTAX_BAD"),
-            _ => eprintln!("Error: other"),
+            ntstatus::STATUS_INSUFFICIENT_RESOURCES => tracing::warn!("Insufficient resources"),
+            ntstatus::STATUS_INVALID_PARAMETER => tracing::warn!("INVALID_PARAMETER"),
+            ntstatus::STATUS_OBJECT_NAME_INVALID => tracing::warn!("OBJECT_NAME_INVALID"),
+            ntstatus::STATUS_OBJECT_NAME_NOT_FOUND => tracing::warn!("OBJECT_NAME_NOT_FOUND"),
+            ntstatus::STATUS_OBJECT_PATH_NOT_FOUND => tracing::warn!("OBJECT_PATH_NOT_FOUND"),
+            ntstatus::STATUS_OBJECT_PATH_SYNTAX_BAD => tracing::warn!("OBJECT_PATH_SYNTAX_BAD"),
+            _ => tracing::warn!("Error: other"),
         }
     }
 
