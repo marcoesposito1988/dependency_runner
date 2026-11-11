@@ -34,11 +34,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 memmap2 = "0.9"
 petgraph = "0.7"
-
-[target.'cfg(not(windows))'.dependencies]
 crossbeam = "0.8.4"
 crossbeam-channel = "0.5.15"
-skim = "0.20.5"
+skim = "4.10.0"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

@@ -1,18 +1,15 @@
+use std::collections::HashMap;
+
 use skim::prelude::*;
 
 use crate::common::readable_canonical_path;
 use crate::executable::Executables;
 use crate::pe::demangle_symbol;
 
-enum SymbolLocation {
-    Exported,
-    Imported(String),
-}
-
 struct SymbolItem {
     symbol: String,
-    dllname: String,
-    location: SymbolLocation,
+    exported_by: Vec<String>,
+    imported_by: Vec<(String, String)>,
 }
 
 impl SkimItem for SymbolItem {
@@ -26,15 +23,26 @@ impl SkimItem for SymbolItem {
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
         let demangled = demangle_symbol(&self.symbol).unwrap_or(self.symbol.clone());
-        let export_msg = if let SymbolLocation::Imported(dll) = &self.location {
-            format!("imported from {}", dll)
-        } else {
-            "exported".to_string()
-        };
-        ItemPreview::Text(format!(
-            "dll:\n\t{}\n\nlocation:\n\t{}\n\nsymbol:\n\t{}\n\nraw symbol:\n\t{}",
-            self.dllname, export_msg, &demangled, self.symbol
-        ))
+        let mut preview = format!(
+            "symbol:\n\t{}\n\nraw symbol:\n\t{}\n",
+            &demangled, self.symbol
+        );
+
+        if !self.exported_by.is_empty() {
+            preview.push_str("\nexported by:\n");
+            for dll in &self.exported_by {
+                preview.push_str(&format!("\t{}\n", dll));
+            }
+        }
+
+        if !self.imported_by.is_empty() {
+            preview.push_str("\nimported by:\n");
+            for (importer, source) in &self.imported_by {
+                preview.push_str(&format!("\t{} (from {})\n", importer, source));
+            }
+        }
+
+        ItemPreview::Text(preview)
     }
 }
 
@@ -88,10 +96,10 @@ impl SkimItem for ExecutableItem {
 
 pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> Option<Vec<String>> {
     let options = SkimOptionsBuilder::default()
-        // .height(Some("50%"))  // enabling this causes a bug where the console is not cleaned up upon exit
-        .preview(Some("".to_string())) // preview should be specified to enable the preview window
-        .preview_window("wrap".to_string())
-        .header(Some("Ctrl+g or ESC to quit".to_string()))
+        // .height("50%")  // enabling this causes a bug where the console is not cleaned up upon exit
+        .preview("".to_string()) // preview should be specified to enable the preview window
+        .preview_window("wrap")
+        .header("Ctrl+g or ESC to quit".to_string())
         .prompt("Fuzzy query: >".to_string())
         .build()
         .unwrap();
@@ -101,6 +109,8 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
     crossbeam::scope(|s| {
         // Producer thread
         s.spawn(|_| {
+            let mut grouped: HashMap<String, SymbolItem> = HashMap::new();
+
             for e in exes.sorted_by_first_appearance() {
                 if selected_dlls
                     .as_ref()
@@ -108,21 +118,27 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
                     .unwrap_or(true)
                 {
                     if let Some(d) = e.details.as_ref() {
-                        if let Some(syms) = d.symbols.as_ref() {
-                            for syms in &syms.exported {
-                                let _ = tx_item.send(Arc::new(SymbolItem {
-                                    symbol: syms.to_string(),
-                                    dllname: e.dllname.clone(),
-                                    location: SymbolLocation::Exported,
-                                }));
-                            }
-                            for syms in &syms.imported {
-                                for sym in syms.1 {
-                                    let _ = tx_item.send(Arc::new(SymbolItem {
+                        if let Some(syms_details) = d.symbols.as_ref() {
+                            for sym in &syms_details.exported {
+                                let item =
+                                    grouped.entry(sym.to_string()).or_insert_with(|| SymbolItem {
                                         symbol: sym.to_string(),
-                                        dllname: e.dllname.clone(),
-                                        location: SymbolLocation::Imported(syms.0.to_string()),
-                                    }));
+                                        exported_by: Vec::new(),
+                                        imported_by: Vec::new(),
+                                    });
+                                item.exported_by.push(e.dllname.clone());
+                            }
+
+                            for (dll, sym_list) in &syms_details.imported {
+                                for sym in sym_list {
+                                    let item = grouped.entry(sym.to_string()).or_insert_with(|| {
+                                        SymbolItem {
+                                            symbol: sym.to_string(),
+                                            exported_by: Vec::new(),
+                                            imported_by: Vec::new(),
+                                        }
+                                    });
+                                    item.imported_by.push((e.dllname.clone(), dll.clone()));
                                 }
                             }
                         }
@@ -130,11 +146,22 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
                 }
             }
 
+            let mut items: Vec<_> = grouped.into_values().collect();
+            items.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+
+            for mut item in items {
+                item.exported_by.sort();
+                item.exported_by.dedup();
+                item.imported_by.sort();
+                item.imported_by.dedup();
+                let _ = tx_item.send(vec![Arc::new(item)]);
+            }
+
             drop(tx_item); // so that skim could know when to stop waiting for more items.
         });
 
         // `run_with` would read and show items from the stream
-        let output = Skim::run_with(&options, Some(rx_item));
+        let output = Skim::run_with(options, Some(rx_item));
 
         let was_aborted = output.as_ref().map(|o| o.is_abort).unwrap_or(true);
 
@@ -158,13 +185,13 @@ pub fn skim_symbols(exes: &Executables, selected_dlls: Option<Vec<String>>) -> O
 
 pub fn skim_dlls(exes: &Executables) -> Option<Vec<String>> {
     let options = SkimOptionsBuilder::default()
-        // .height(Some("50%")) // enabling this causes a bug where the console is not cleaned up upon exit
-        .preview(Some("".to_string())) // preview should be specified to enable the preview window
-        .preview_window("wrap".to_string())
+        // .height("50%") // enabling this causes a bug where the console is not cleaned up upon exit
+        .preview("".to_string()) // preview should be specified to enable the preview window
+        .preview_window("wrap")
         .multi(true)
-        .header(Some(
+        .header(
             "Ctrl+g or ESC to quit\nSelect DLLs with TAB and press Enter to inspect symbols"
-            .to_string()))
+            .to_string())
         .prompt("Fuzzy query: >".to_string())
         .build()
         .unwrap();
@@ -236,20 +263,20 @@ pub fn skim_dlls(exes: &Executables) -> Option<Vec<String>> {
                         })
                     })
                     .unwrap_or(None);
-                let _ = tx_item.send(Arc::new(ExecutableItem {
+                let _ = tx_item.send(vec![Arc::new(ExecutableItem {
                     name,
                     path,
                     kind,
                     dependencies,
                     imports,
                     exports,
-                }));
+                })]);
             }
             drop(tx_item); // so that skim could know when to stop waiting for more items.
         });
 
         // `run_with` would read and show items from the stream
-        let output = Skim::run_with(&options, Some(rx_item));
+        let output = Skim::run_with(options, Some(rx_item));
 
         let was_aborted = output.as_ref().map(|o| o.is_abort).unwrap_or(true);
 

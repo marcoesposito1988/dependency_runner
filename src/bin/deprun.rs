@@ -6,13 +6,11 @@ use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
 
 use anyhow::Context;
 use clap::Parser;
-#[cfg(not(windows))]
 use dependency_runner::common::path_to_string;
 use dependency_runner::common::{decanonicalize, readable_canonical_path};
 use dependency_runner::executable::{Executable, Executables};
 use dependency_runner::pe::demangle_symbol;
 use dependency_runner::query::LookupQuery;
-#[cfg(not(windows))]
 use dependency_runner::skim::{skim_dlls, skim_symbols};
 #[cfg(not(windows))]
 use dependency_runner::system::WindowsSystem;
@@ -242,11 +240,9 @@ struct DeprunCli {
     #[clap(short, long)]
     /// Check that all imported symbols are found within the (non-system) dependencies
     check_symbols: bool,
-    #[cfg(not(windows))]
     #[clap(short, long)]
     /// Start a fuzzy search on the found DLLs, then on the symbols of the selected DLL
     skim: bool,
-    #[cfg(not(windows))]
     #[clap(long)]
     /// Start a fuzzy search on the symbols of all found DLLs
     skim_symbols: bool,
@@ -404,14 +400,8 @@ fn main() -> anyhow::Result<()> {
             query.parameters.max_depth = Some(max_depth);
         }
 
-        #[cfg(not(windows))]
         {
             query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
-        }
-
-        #[cfg(windows)]
-        {
-            query.parameters.extract_symbols = args.check_symbols;
         }
 
         // overrides (must be last)
@@ -519,14 +509,8 @@ fn main() -> anyhow::Result<()> {
 
         let sorted_executables = executables.sorted_by_first_appearance();
 
-        #[cfg(not(windows))]
         let do_skim = args.skim;
-        #[cfg(not(windows))]
         let do_skim_symbols = args.skim_symbols;
-        #[cfg(windows)]
-        let do_skim = false;
-        #[cfg(windows)]
-        let do_skim_symbols = false;
 
         // print results
         if !(do_skim || do_skim_symbols) {
@@ -617,7 +601,6 @@ fn main() -> anyhow::Result<()> {
         }
 
         // skimming
-        #[cfg(not(windows))]
         if args.skim {
             while let Some(selected_dlls) = skim_dlls(&executables) {
                 skim_symbols(&executables, Some(selected_dlls));
