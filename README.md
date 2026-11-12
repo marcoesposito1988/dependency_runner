@@ -207,7 +207,7 @@ Help is welcome in the form of issues and pull request!
     - [x] specification of PATH through `.vcxproj.user` files, picking configuration
     - [x] specification of executable and working directory through `.vcxproj` files, picking configuration
     - [x] extraction of symbols from DLLs
-    - [x] check of imported/exported symbols correspondency down the dependency tree
+    - [x] check of imported/exported symbols correspondence down the dependency tree
   - [x] release on package managers
       - [x] crates.io
 - v 0.2.0
@@ -225,6 +225,9 @@ Help is welcome in the form of issues and pull request!
 - v 1.4.0
     - [x] Rust 2024 support
 - v 1.5.0
+    - [x] TUI
+    - [x] Switch to windows-sys
+- v 1.6.0
     - [ ] support of manifests
     - [ ] visualization of library symbols with address/ordinal
     - [ ] release on package managers

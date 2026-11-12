@@ -1,3 +1,9 @@
+# 1.6.0
+
+- Added TUI
+- Switched to windows-sys
+- Refactored the data structures to use a proper directed acyclic graph 
+
 # 1.5.0
 
 - Added support for relative paths in vcxproj files 
