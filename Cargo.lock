@@ -814,8 +814,10 @@ dependencies = [
  "clap",
  "crossbeam",
  "crossbeam-channel",
+ "crossterm",
  "dataview",
  "fs-err",
+ "fuzzy-matcher",
  "glob",
  "goblin",
  "memmap2",
@@ -823,6 +825,7 @@ dependencies = [
  "multimap",
  "pelite",
  "petgraph",
+ "ratatui",
  "regex",
  "roxmltree",
  "serde",
@@ -831,6 +834,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",
+ "tui-tree-widget",
  "windows-sys 0.59.0",
 ]
 
@@ -1235,6 +1239,15 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "fuzzy-matcher"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
+dependencies = [
+ "thread_local",
 ]
 
 [[package]]
@@ -3471,6 +3484,17 @@ dependencies = [
  "ratatui-core",
  "ratatui-widgets",
  "vt100",
+]
+
+[[package]]
+name = "tui-tree-widget"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "246c1142baa1e7a42b94f0fb2b60d838fc884c16281e330bf8624da65ed8f89a"
+dependencies = [
+ "ratatui-core",
+ "ratatui-widgets",
+ "unicode-width",
 ]
 
 [[package]]

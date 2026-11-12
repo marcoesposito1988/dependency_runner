@@ -144,6 +144,19 @@ deprun --print-system-dlls path/to/your/executable.exe
 deprun --skim path/to/your/executable.exe
 ```
 
+#### Interactive Collapsible Tree Explorer with Fuzzy Search (Ratatui TUI)
+```bash
+deprun --tree path/to/your/executable.exe
+# or short alias:
+deprun -t path/to/your/executable.exe
+```
+Features of the interactive tree:
+- Collapsible/expandable hierarchical tree (`Space` / `Enter` / arrows)
+- Inline real-time Skim fuzzy search & filtering for both the left tree pane and right inspector pane (`/`, `s`, `f`, `Ctrl+P`)
+- Rapid jumping between filter results (`n` / `N`, `Ctrl+N` / `Ctrl+P`, `F3` / `Shift+F3`)
+- Inspector pane for direct dependencies, exported symbols, imported symbols, and missing dependency diagnostics (`Tab`, `1`-`4`)
+- Interactive help (`?`)
+
 ### Lookup path
 
 #### Defining the whole DLL lookup path with a .dwp file (Dependency Walker format)

@@ -246,6 +246,9 @@ struct DeprunCli {
     #[clap(long)]
     /// Start a fuzzy search on the symbols of all found DLLs
     skim_symbols: bool,
+    #[clap(short = 't', long, alias = "tui", alias = "interactive", conflicts_with = "skim", conflicts_with = "skim_symbols")]
+    /// Start an interactive collapsible tree view with fuzzy search
+    tree: bool,
     #[clap(value_parser, short, long)]
     /// Working directory to be considered in the DLL lookup path (default: same as the shell deprun runs in)
     working_directory: Option<String>,
@@ -401,7 +404,7 @@ fn main() -> anyhow::Result<()> {
         }
 
         {
-            query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim;
+            query.parameters.extract_symbols = args.check_symbols || args.skim_symbols || args.skim || args.tree;
         }
 
         // overrides (must be last)
@@ -511,9 +514,10 @@ fn main() -> anyhow::Result<()> {
 
         let do_skim = args.skim;
         let do_skim_symbols = args.skim_symbols;
+        let do_tree = args.tree;
 
         // print results
-        if !(do_skim || do_skim_symbols) {
+        if !(do_skim || do_skim_symbols || do_tree) {
             // printing in depth order // TODO: arg to choose output format
             //
             // for e in sorted_executables {
@@ -600,6 +604,11 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        // interactive tree view
+        if args.tree {
+            dependency_runner::tui::run_tui(&executables, args.print_system_dlls)?;
+        }
+
         // skimming
         if args.skim {
             while let Some(selected_dlls) = skim_dlls(&executables) {
@@ -675,6 +684,43 @@ mod tests {
                 );
             }
         });
+    }
+
+    #[test]
+    fn test_deprun_tree_help() {
+        ensure_binary_built();
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or_else(|_| "target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(&deprun_bin)
+            .arg("--help")
+            .output()
+            .expect("Failed to execute deprun --help");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("--tree"));
+    }
+
+    #[test]
+    fn test_deprun_tree_and_skim_incompatible() {
+        ensure_binary_built();
+        let deprun_bin = std::env::var("CARGO_BIN_EXE_deprun")
+            .unwrap_or_else(|_| "target/debug/deprun".to_string());
+
+        let output = std::process::Command::new(&deprun_bin)
+            .arg("-t")
+            .arg("-s")
+            .arg("dummy.exe")
+            .output()
+            .expect("Failed to execute deprun");
+
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("cannot be used with") || stderr.contains("conflict"),
+            "Expected conflict error message, got: {}",
+            stderr
+        );
     }
 
     #[test]

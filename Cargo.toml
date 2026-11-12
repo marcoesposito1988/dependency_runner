@@ -37,6 +37,10 @@ petgraph = "0.7"
 crossbeam = "0.8.4"
 crossbeam-channel = "0.5.15"
 skim = "4.10.0"
+ratatui = "0.30.2"
+tui-tree-widget = "0.24.1"
+crossterm = "0.29.0"
+fuzzy-matcher = "0.3.7"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

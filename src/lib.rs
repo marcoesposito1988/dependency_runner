@@ -49,4 +49,5 @@ pub mod query;
 pub mod runner;
 pub mod skim;
 pub mod system;
+pub mod tui;
 pub mod vcx;
