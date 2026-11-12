@@ -650,7 +650,6 @@ dependencies = [
  "anyhow",
  "clap",
  "crossbeam",
- "crossbeam-channel",
  "crossterm",
  "dataview",
  "fs-err",

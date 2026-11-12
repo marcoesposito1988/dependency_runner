@@ -6,6 +6,7 @@ use dependency_runner::vcx::{parse_vcxproj, parse_vcxproj_user};
 
 use anyhow::Context;
 use clap::Parser;
+#[cfg(not(windows))]
 use dependency_runner::common::path_to_string;
 use dependency_runner::common::{decanonicalize, readable_canonical_path};
 use dependency_runner::executable::{Executable, Executables};

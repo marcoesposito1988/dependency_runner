@@ -35,7 +35,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 memmap2 = "0.9"
 petgraph = "0.8.3"
 crossbeam = "0.8.5"
-crossbeam-channel = "0.5.15"
 skim = "5.9.0"
 ratatui = "0.30.2"
 tui-tree-widget = "0.24.1"
